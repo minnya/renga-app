@@ -125,6 +125,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
         final influencePercentile = profile['influence_percentile'];
         final intellectScore = profile['intellect_score'];
         final intellectPercentile = profile['intellect_percentile'];
+        final intellectBadgeLabel = _intellectBadgeLabel(intellectPercentile as num?);
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -179,6 +180,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                     label: 'Intellect',
                     score: intellectScore,
                     percentile: intellectPercentile,
+                    badgeLabel: intellectBadgeLabel,
                   ),
                 ),
               ],
@@ -195,12 +197,27 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
   }
 }
 
+/// design/product.md 4章「上位25%/5%知能バッジ」。値が小さいほど上位を表す前提。
+/// パーセンタイル自動再計算バッチ（Phase3）が未実装のため、現状は全ユーザーで`0`のまま。
+String? _intellectBadgeLabel(num? percentile) {
+  if (percentile == null) return null;
+  if (percentile <= 5) return '上位5%';
+  if (percentile <= 25) return '上位25%';
+  return null;
+}
+
 class _ScoreCard extends StatelessWidget {
-  const _ScoreCard({required this.label, required this.score, required this.percentile});
+  const _ScoreCard({
+    required this.label,
+    required this.score,
+    required this.percentile,
+    this.badgeLabel,
+  });
 
   final String label;
   final dynamic score;
   final dynamic percentile;
+  final String? badgeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +227,19 @@ class _ScoreCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: Theme.of(context).textTheme.labelLarge),
+            Row(
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelLarge),
+                if (badgeLabel != null) ...[
+                  const SizedBox(width: 8),
+                  Chip(
+                    label: Text(badgeLabel!, style: const TextStyle(fontSize: 11)),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ],
+              ],
+            ),
             const SizedBox(height: 8),
             Text('$score', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 4),

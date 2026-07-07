@@ -1,11 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/auth_state.dart';
 import 'feed_controller.dart';
 
-/// design/system.md のテキスト投稿作成画面。
+/// design/system.md のテキスト投稿・画像投稿作成画面。
 ///
 /// ログイン中のユーザーのみ投稿できる。未ログイン時は投稿ボタンを無効化し、
 /// ログインを促す案内を表示する。
@@ -20,11 +23,30 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   final _controller = TextEditingController();
   bool _isSubmitting = false;
   String? _errorMessage;
+  XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _selectedImage = picked;
+      _selectedImageBytes = bytes;
+    });
+  }
+
+  void _clearImage() {
+    setState(() {
+      _selectedImage = null;
+      _selectedImageBytes = null;
+    });
   }
 
   Future<void> _submit() async {
@@ -33,8 +55,9 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       setState(() => _errorMessage = 'ログインしてから投稿してください');
       return;
     }
-    if (_controller.text.trim().isEmpty) {
-      setState(() => _errorMessage = '投稿内容を入力してください');
+    final hasImage = _selectedImage != null && _selectedImageBytes != null;
+    if (_controller.text.trim().isEmpty && !hasImage) {
+      setState(() => _errorMessage = '投稿内容を入力するか、画像を選択してください');
       return;
     }
 
@@ -44,9 +67,24 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     });
 
     try {
-      await ref
-          .read(feedControllerProvider)
-          .createTextPost(authorId: currentUser.id, body: _controller.text);
+      final controller = ref.read(feedControllerProvider);
+      if (hasImage) {
+        final fileExt = (_selectedImage!.name.contains('.'))
+            ? _selectedImage!.name.split('.').last
+            : 'jpg';
+        final imageUrl = await controller.uploadPostImage(
+          userId: currentUser.id,
+          bytes: _selectedImageBytes!,
+          fileExt: fileExt,
+        );
+        await controller.createImagePost(
+          authorId: currentUser.id,
+          body: _controller.text,
+          imageUrl: imageUrl,
+        );
+      } else {
+        await controller.createTextPost(authorId: currentUser.id, body: _controller.text);
+      }
 
       if (!mounted) return;
       // 一覧が最新化された状態でフィードへ戻る。
@@ -93,6 +131,33 @@ class _ComposePageState extends ConsumerState<ComposePage> {
                 border: OutlineInputBorder(),
               ),
             ),
+            const SizedBox(height: 12),
+            if (_selectedImageBytes != null)
+              Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      _selectedImageBytes!,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _isSubmitting ? null : _clearImage,
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    style: IconButton.styleFrom(backgroundColor: Colors.black45),
+                  ),
+                ],
+              )
+            else
+              OutlinedButton.icon(
+                onPressed: isLoggedIn && !_isSubmitting ? _pickImage : null,
+                icon: const Icon(Icons.image_outlined),
+                label: const Text('画像を選択'),
+              ),
             if (_errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
