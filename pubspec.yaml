@@ -37,6 +37,8 @@ dependencies:
   supabase_flutter: ^2.16.0
   flutter_dotenv: ^6.0.1
   postgrest: ^2.8.0
+  firebase_core: ^4.11.0
+  firebase_remote_config: ^6.5.3
 
 dev_dependencies:
   flutter_test:

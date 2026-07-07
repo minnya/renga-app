@@ -11,12 +11,15 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await dotenv.load(fileName: '.env');
     await initSupabase();
+    // firebase_core はプラットフォームチャンネル未モックのためここでは初期化しない。
+    // ConnectionCheckPage側のFirebaseチェックはtry/catchでエラー状態として扱われる想定。
   });
 
-  testWidgets('SupabaseCheckPage shows title and Supabase URL', (WidgetTester tester) async {
+  testWidgets('ConnectionCheckPage shows Supabase and Firebase cards', (WidgetTester tester) async {
     await tester.pumpWidget(const RengaApp());
 
     expect(find.text('Renga — 基盤動作確認'), findsOneWidget);
-    expect(find.textContaining('Supabase URL:'), findsOneWidget);
+    expect(find.text('Supabase'), findsOneWidget);
+    expect(find.text('Firebase'), findsOneWidget);
   });
 }

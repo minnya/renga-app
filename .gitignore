@@ -15,10 +15,14 @@ build/
 .flutter-plugins
 .flutter-plugins-dependencies
 *.g.dart
+coverage/
+
+# Node.js（npx supabase / firebase-tools 用。package.json/package-lock.jsonはCLIバージョン
+# 固定のためコミット対象、node_modules/のみ除外）
+node_modules/
 
 # Supabase local
-supabase/.branches/
-supabase/.temp/
+# supabase/.gitignore で .branches / .temp 等は別途管理済み
 
 # IDE
 .idea/
