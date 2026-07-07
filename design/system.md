@@ -651,19 +651,23 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
 4. Edge Function `mux_webhook` をデプロイし、そのURL（例: `https://<project-ref>.functions.supabase.co/mux_webhook`）をMux Dashboardの Webhooks 設定に登録
 5. Webhook Signing Secretを発行し、`.env` の `MUX_WEBHOOK_SIGNING_SECRET` に設定 → `npx supabase secrets set MUX_WEBHOOK_SIGNING_SECRET=...` で登録（署名検証に使用、5章参照）
 
-### 11.6 GitHub Pages セットアップ（利用規約・プライバシーポリシー公開）
+### 11.6 GitHub Pages セットアップ（利用規約・プライバシーポリシー・ランディングページ公開）
 
-利用規約・プライバシーポリシーはリポジトリの `docs/` フォルダにMarkdownで管理し、GitHub Pagesで
-静的サイトとして公開する（`design/` フォルダの内部設計ドキュメントとは別に、`docs/` は公開用に予約する）。
+利用規約・プライバシーポリシーに加え、アプリ紹介用のランディングページ（Play Store/App Storeへの
+リンク誘導、product.md — [7章 Playストアリリース準備 — ランディングページ](product.md#ランディングページgithub-pages)参照）も
+まとめてリポジトリの `docs/` フォルダで管理し、GitHub Pagesで静的サイトとして公開する
+（`design/` フォルダの内部設計ドキュメントとは別に、`docs/` は公開用に予約する）。
 
 1. リポジトリ設定 `Settings > Pages` を開く
 2. **Source** を `Deploy from a branch` に設定
 3. **Branch** を `main`、フォルダを `/docs` に設定して保存
 4. 数分後、`https://minnya.github.io/chatapp-renga/` で公開される
+   - ランディングページ: `https://minnya.github.io/chatapp-renga/`（`docs/index.html`）
    - 利用規約: `https://minnya.github.io/chatapp-renga/terms.html`
    - プライバシーポリシー: `https://minnya.github.io/chatapp-renga/privacy.html`
 5. `docs/terms.md` / `docs/privacy.md` 内の `support@renga-app.com` を実際に監視するサポートメールアドレスに置き換える（公開前に必須）
-6. これらのURLをGoogle Play Consoleのストア掲載情報（プライバシーポリシーURL）・アプリ内設定画面にそれぞれ設定する
+6. `docs/index.html` のGoogle Play / App Storeバッジのリンク先を、実際のストア掲載URL確定後に差し替える（Phase 1時点ではApp Store側は「Coming soon」の非活性リンクで暫定運用）
+7. これらのURLをGoogle Play Consoleのストア掲載情報（プライバシーポリシーURL・マーケティングURL）・アプリ内設定画面にそれぞれ設定する
 
 この構成により、Flutter/Firebase/Supabase/Gemini/Mux側それぞれの設定変更をCLIコマンドとして再現可能にし、チーム内・CI環境での再セットアップを容易にする。
 

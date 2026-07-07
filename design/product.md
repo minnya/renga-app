@@ -238,6 +238,25 @@ Renga（連歌）のブランドコンセプトに沿い、「連なる句／連
 
 いずれも「PLACEHOLDER MOCKUP」の透かしを明示的に入れており、そのままストア申請には使用不可。実装後、同じレイアウト意図が伝わる構図で実機キャプチャに置き換える。
 
+### ランディングページ（GitHub Pages）
+
+利用規約・プライバシーポリシーと同じGitHub Pages配信（`docs/`フォルダ）上に、アプリの顔となる
+ランディングページを併設する。追加のホスティング費用を発生させず（GitHub Pages無料枠）、
+Play Store審査中〜公開後の告知先、SNS/プロフィールのバイオリンク、Apple Store申請時の
+「マーケティングURL」としても流用できる一枚のURLを用意することが目的。
+
+- **原稿/実装**: `docs/index.html`（静的HTML+CSS。ビルドツール不要で完結させる）
+- **公開URL**: `https://minnya.github.io/chatapp-renga/`
+- **構成**:
+  - ヒーロー: ロゴ + キャッチコピー（英語既定、日本語は補足として併記可）+ ストアバッジ2種（Google Play / App Store）
+  - プロダクト紹介: 仮スクリーンショット（`assets/store/screenshots/`）を転用した3〜4枚のイメージと、Influence/Intellectの2軸評価・ロジックチェックといった主要機能の簡潔な訴求
+  - フッター: 利用規約（`terms.html`）・プライバシーポリシー（`privacy.html`）・サポート連絡先へのリンク
+- **ストアバッジのリンク先**:
+  - Google Play: 公式バッジ画像（Google Play Badge Generatorで取得）をPlay Store公開後の実際のアプリURLへリンク
+  - App Store: 公式"Download on the App Store"バッジを用意しておくが、Phase 1はAndroid先行リリースのため、iOS版審査提出（Phase 2、[8章 MVPスコープ定義](#8-mvpスコープ定義フェーズ分割)参照）が完了するまでは「Coming soon」表示または非活性リンクとし、公開後にURLを差し替える
+- **デザインの一貫性**: 4章のデザインシステム（カラートークン・フォント）をそのまま踏襲し、アプリ本体との統一感を持たせる。
+- GitHub Pagesの有効化手順自体は利用規約/プライバシーポリシーと共通のため [system.md — 11.6 GitHub Pages セットアップ](system.md#116-github-pages-セットアップ利用規約プライバシーポリシーランディングページ公開) を参照。
+
 ### リリースビルド運用
 
 - `flutter build appbundle --flavor prod -t lib/main_prod.dart` でAndroid App Bundle（.aab）を生成し、Play Consoleにアップロード。
