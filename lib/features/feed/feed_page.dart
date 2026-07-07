@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth_state.dart';
+import '../quiz/quiz_controller.dart';
 import 'feed_controller.dart';
 import 'post.dart';
 
@@ -20,9 +21,20 @@ class FeedPage extends ConsumerWidget {
     final layer = ref.watch(layerFilterProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Renga — フィード')),
+      appBar: AppBar(
+        title: const Text('Renga — フィード'),
+        actions: [
+          if (currentUser != null)
+            IconButton(
+              tooltip: 'デイリークイズ',
+              onPressed: () => context.go('/daily-quiz'),
+              icon: const Icon(Icons.quiz_outlined),
+            ),
+        ],
+      ),
       body: Column(
         children: [
+          if (currentUser != null) const _OnboardingQuizBanner(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: SegmentedButton<LayerFilter>(
@@ -81,6 +93,34 @@ class FeedPage extends ConsumerWidget {
               child: const Icon(Icons.edit),
             )
           : null,
+    );
+  }
+}
+
+/// design/product.md 3章「オンボーディングクイズ」。未完了のユーザーにのみ案内を表示する。
+class _OnboardingQuizBanner extends ConsumerWidget {
+  const _OnboardingQuizBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasCompletedAsync = ref.watch(hasCompletedOnboardingProvider);
+
+    return hasCompletedAsync.when(
+      data: (hasCompleted) {
+        if (hasCompleted) return const SizedBox.shrink();
+        return Card(
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: ListTile(
+            leading: const Icon(Icons.school_outlined),
+            title: const Text('はじめてのクイズに挑戦しよう'),
+            subtitle: const Text('3問に答えると暫定Intellectランクが決まります'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/onboarding-quiz'),
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (error, stackTrace) => const SizedBox.shrink(),
     );
   }
 }

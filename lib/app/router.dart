@@ -10,6 +10,8 @@ import '../features/debug/connection_check_page.dart';
 import '../features/feed/compose_page.dart';
 import '../features/feed/feed_page.dart';
 import '../features/profile/profile_page.dart';
+import '../features/quiz/quiz_controller.dart';
+import '../features/quiz/quiz_page.dart';
 
 const _publicPaths = {'/login', '/signup', '/debug'};
 
@@ -41,6 +43,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/signup', builder: (context, state) => const SignupPage()),
       GoRoute(path: '/compose', builder: (context, state) => const ComposePage()),
       GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
+      GoRoute(
+        path: '/onboarding-quiz',
+        builder: (context, state) => const QuizPage(kind: QuizKind.onboarding),
+      ),
+      GoRoute(
+        path: '/daily-quiz',
+        builder: (context, state) => const QuizPage(kind: QuizKind.daily),
+      ),
       GoRoute(path: '/debug', builder: (context, state) => const ConnectionCheckPage()),
     ],
   );
