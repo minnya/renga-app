@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Renga — Connect through intellect</title>
+<meta name="description" content="Renga is the next-gen social app that scores posts on two axes — Influence and Intellect — so logic beats noise.">
+<meta property="og:title" content="Renga — Connect through intellect">
+<meta property="og:description" content="The next-gen social app where logic beats noise. Influence × Intellect, Logic Check debates, and expert-verified discussion.">
+<meta property="og:image" content="assets/store/feature_graphic_1024x500.png">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="assets/icon/renga_icon_1024.png">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d14;
+    --bg-elevated: #12151f;
+    --bg-card: #171b28;
+    --text: #f3f4f8;
+    --text-muted: #9ba0b3;
+    --border: #262b3d;
+    --influence-start: #ff7a45;
+    --influence-end: #ffb648;
+    --intellect-start: #4f6bff;
+    --intellect-end: #7ee0ff;
+    --font-heading: "Space Grotesk", "Avenir Next", "Segoe UI", "Hiragino Sans", sans-serif;
+    --font-body: "Inter", "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --bg: #f7f7fb;
+      --bg-elevated: #ffffff;
+      --bg-card: #ffffff;
+      --text: #14151c;
+      --text-muted: #565b6e;
+      --border: #e4e5ef;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  a { color: inherit; }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Nav */
+  nav.wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 28px;
+    padding-bottom: 28px;
+  }
+
+  nav img {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  nav span {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+
+  /* Hero */
+  .hero {
+    text-align: center;
+    padding: 40px 24px 72px;
+  }
+
+  .hero img.icon {
+    width: 96px;
+    height: 96px;
+    border-radius: 22px;
+    box-shadow: 0 12px 40px rgba(79, 107, 255, 0.25);
+    margin-bottom: 28px;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    max-width: 760px;
+    margin: 0 auto 18px;
+    background: linear-gradient(90deg, var(--influence-start), var(--intellect-end));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hero p.tagline-ja {
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    margin: 0 auto 36px;
+    max-width: 560px;
+  }
+
+  .badges {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .store-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    cursor: default;
+    opacity: 0.75;
+  }
+
+  .store-badge svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+  .store-badge .label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.2;
+  }
+
+  .store-badge .label small { font-size: 0.68rem; }
+  .store-badge .label strong { font-size: 0.92rem; color: var(--text); }
+
+  /* Two-axis strip */
+  .axes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 0 0 88px;
+  }
+
+  @media (max-width: 640px) {
+    .axes { grid-template-columns: 1fr; }
+  }
+
+  .axis-card {
+    border-radius: 20px;
+    padding: 28px 26px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  .axis-card .swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+  }
+
+  .axis-card.influence .swatch {
+    background: linear-gradient(135deg, var(--influence-start), var(--influence-end));
+  }
+
+  .axis-card.intellect .swatch {
+    background: linear-gradient(135deg, var(--intellect-start), var(--intellect-end));
+  }
+
+  .axis-card h3 { font-size: 1.15rem; margin-bottom: 8px; }
+  .axis-card p { color: var(--text-muted); margin: 0; font-size: 0.95rem; }
+
+  /* Feature intro */
+  section.features { padding-bottom: 88px; }
+
+  section.features > .wrap > h2 {
+    font-size: 1.7rem;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  section.features > .wrap > p.sub {
+    text-align: center;
+    color: var(--text-muted);
+    max-width: 620px;
+    margin: 0 auto 44px;
+  }
+
+  .shots {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+  }
+
+  @media (max-width: 860px) {
+    .shots { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .shot-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .shot-card img {
+    width: 100%;
+    display: block;
+  }
+
+  .shot-card figcaption {
+    padding: 14px 16px 18px;
+    margin: 0;
+  }
+
+  .shot-card figcaption strong {
+    display: block;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+  }
+
+  .shot-card figcaption span {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+  }
+
+  .placeholder-note {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 20px;
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 24px 40px;
+  }
+
+  footer .wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  footer nav {
+    display: flex;
+    gap: 24px;
+    padding: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+  }
+
+  footer nav a:hover { color: var(--text); }
+
+  footer .copyright {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+  }
+</style>
+</head>
+<body>
+
+<nav class="wrap">
+  <img src="assets/icon/renga_icon_1024.png" alt="Renga logo">
+  <span>Renga</span>
+</nav>
+
+<header class="hero">
+  <div class="wrap" style="padding:0;">
+    <img class="icon" src="assets/icon/renga_icon_1024.png" alt="Renga app icon">
+    <h1>Connect through intellect — the next-gen social app where logic beats noise.</h1>
+    <p class="tagline-ja">知性でつながる、次世代の2軸評価型SNS「連歌」。声の大きさではなく、論理の強さで議論が磨かれる場所。</p>
+    <div class="badges">
+      <span class="store-badge" aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 20.5V3.5c0-.6.32-1.13.83-1.42l10.3 9.92-10.3 9.92c-.51-.29-.83-.82-.83-1.42Zm13.3-7.5 2.5-1.44 3.03 1.75c.9.52.9 1.83 0 2.35l-3.03 1.75-2.5-1.44Zm-1.36-1.36L4.5 2.9 16.31 9.5l-1.37 1.14Zm0 2.72 1.37 1.14L4.5 21.1l10.44-6.74Z"/></svg>
+        <span class="label"><small>Coming soon on</small><strong>Google Play</strong></span>
+      </span>
+      <span class="store-badge" aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 2c.1 1.1-.32 2.2-1.02 3.03-.72.85-1.9 1.5-3.03 1.42-.13-1.08.38-2.2 1.06-2.98C14.24 2.6 15.4 2.06 16.5 2Zm4.02 15.28c-.34.79-.75 1.55-1.24 2.27-.68.99-1.24 1.68-1.9 2.45-.7.8-1.5 1.6-2.57 1.62-1.02.02-1.35-.6-2.62-.6-1.28 0-1.65.58-2.62.62-1.03.04-1.82-.83-2.53-1.62-1.44-1.63-2.66-4.6-2.72-7.32-.05-1.86.5-3.6 1.44-4.86.7-.94 1.86-1.55 3.02-1.57 1.02-.02 1.68.7 2.62.7.9 0 1.36-.7 2.62-.68 1.08.02 2.34.6 3.03 1.6-2.66 1.56-2.24 5.33.47 6.4Z"/></svg>
+        <span class="label"><small>Coming soon on the</small><strong>App Store</strong></span>
+      </span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="axes">
+    <div class="axis-card influence">
+      <div class="swatch"></div>
+      <h3>Influence</h3>
+      <p>Followers, reposts, and impressions — the reach a voice already commands.</p>
+    </div>
+    <div class="axis-card intellect">
+      <div class="swatch"></div>
+      <h3>Intellect</h3>
+      <p>Earned through logic quizzes, expert endorsements, and Logic Check debates — a score for quality of thought.</p>
+    </div>
+  </div>
+</main>
+
+<section class="features">
+  <div class="wrap">
+    <h2>One feed, two kinds of power</h2>
+    <p class="sub">Renga's Intelligence Layer Filter surfaces posts by the badge tier you trust, so loud accounts with weak logic don't get the last word.</p>
+    <div class="shots">
+      <figure class="shot-card">
+        <img src="assets/store/screenshots/01_feed_placeholder.png" alt="Renga feed with intelligence layer filter">
+        <figcaption><strong>Feed</strong><span>Layer filter by intellect tier</span></figcaption>
+      </figure>
+      <figure class="shot-card">
+        <img src="assets/store/screenshots/02_battle_placeholder.png" alt="Renga Logic Check battle screen">
+        <figcaption><strong>Logic Check</strong><span>Staked debates, audience bets</span></figcaption>
+      </figure>
+      <figure class="shot-card">
+        <img src="assets/store/screenshots/03_profile_placeholder.png" alt="Renga profile with influence and intellect radar">
+        <figcaption><strong>Profile</strong><span>Influence × Intellect radar</span></figcaption>
+      </figure>
+      <figure class="shot-card">
+        <img src="assets/store/screenshots/04_daily_quiz_placeholder.png" alt="Renga daily quiz modal">
+        <figcaption><strong>Daily Quiz</strong><span>Build Thought Power daily</span></figcaption>
+      </figure>
+    </div>
+    <p class="placeholder-note">Screens shown are wireframe mockups ahead of launch and will be replaced with real captures.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <nav>
+      <a href="terms.html">Terms of Service</a>
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="mailto:support@renga-app.com">Support</a>
+    </nav>
+    <span class="copyright">&copy; 2026 minnya. Renga.</span>
+  </div>
+</footer>
+
+</body>
+</html>
