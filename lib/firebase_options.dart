@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -64,5 +61,15 @@ class DefaultFirebaseOptions {
     projectId: 'chatapp-renga',
     storageBucket: 'chatapp-renga.firebasestorage.app',
     iosBundleId: 'com.minnya.renga',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCQlHsJNmBSnBe3xcbdXUHpRt-LYERSU2Q',
+    appId: '1:357005393053:web:5504778b7d5ca95ab36874',
+    messagingSenderId: '357005393053',
+    projectId: 'chatapp-renga',
+    authDomain: 'chatapp-renga.firebaseapp.com',
+    storageBucket: 'chatapp-renga.firebasestorage.app',
+    measurementId: 'G-DWNZWP9CXW',
   );
 }
