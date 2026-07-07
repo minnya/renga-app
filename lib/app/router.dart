@@ -1,65 +1,66 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/auth_state.dart';
+import '../features/auth/login_page.dart';
+import '../features/auth/signup_page.dart';
 import '../features/debug/connection_check_page.dart';
+import '../features/feed/compose_page.dart';
+import '../features/feed/feed_page.dart';
+import '../features/profile/profile_page.dart';
+
+const _publicPaths = {'/login', '/signup', '/debug'};
 
 /// アプリ全体のルーティング定義。
 ///
-/// `/login` `/signup` `/profile` `/compose` は feature/auth, feature/profile, feature/feed の
-/// 各実装がマージされ次第、プレースホルダーから実画面に差し替える（design/plan参照）。
-/// 認証状態によるリダイレクトも、feature/auth マージ後にここへ配線する。
+/// 未ログイン時は `/login` `/signup` `/debug` 以外へのアクセスを `/login` へリダイレクトする。
 final routerProvider = Provider<GoRouter>((ref) {
+  final authStateAsync = ref.watch(authStateChangesProvider);
+
   return GoRouter(
     initialLocation: '/',
+    refreshListenable: _AuthRefreshListenable(ref),
+    redirect: (context, state) {
+      // 初回のセッション確認が完了するまではリダイレクトを保留する。
+      if (authStateAsync.isLoading) return null;
+
+      final isLoggedIn = ref.read(currentUserProvider) != null;
+      final isPublicPath = _publicPaths.contains(state.matchedLocation);
+
+      if (!isLoggedIn && !isPublicPath) return '/login';
+      if (isLoggedIn && (state.matchedLocation == '/login' || state.matchedLocation == '/signup')) {
+        return '/';
+      }
+      return null;
+    },
     routes: [
-      GoRoute(path: '/', builder: (context, state) => const _PlaceholderPage(title: 'Feed')),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const _PlaceholderPage(title: 'Login'),
-      ),
-      GoRoute(
-        path: '/signup',
-        builder: (context, state) => const _PlaceholderPage(title: 'Sign up'),
-      ),
-      GoRoute(
-        path: '/compose',
-        builder: (context, state) => const _PlaceholderPage(title: 'Compose'),
-      ),
-      GoRoute(
-        path: '/profile',
-        builder: (context, state) => const _PlaceholderPage(title: 'Profile'),
-      ),
-      GoRoute(
-        path: '/debug',
-        builder: (context, state) => const ConnectionCheckPage(),
-      ),
+      GoRoute(path: '/', builder: (context, state) => const FeedPage()),
+      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+      GoRoute(path: '/signup', builder: (context, state) => const SignupPage()),
+      GoRoute(path: '/compose', builder: (context, state) => const ComposePage()),
+      GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
+      GoRoute(path: '/debug', builder: (context, state) => const ConnectionCheckPage()),
     ],
   );
 });
 
-class _PlaceholderPage extends StatelessWidget {
-  const _PlaceholderPage({required this.title});
+/// 認証状態の変化をgo_routerの`refreshListenable`へ橋渡しし、
+/// ログイン/ログアウト時に`redirect`を再評価させる。
+class _AuthRefreshListenable extends ChangeNotifier {
+  _AuthRefreshListenable(this._ref) {
+    _subscription = _ref.listen(authStateChangesProvider, (previous, next) {
+      notifyListeners();
+    });
+  }
 
-  final String title;
+  final Ref _ref;
+  late final ProviderSubscription<AsyncValue<AuthState>> _subscription;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('$title は実装待ちです'),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => context.go('/debug'),
-              child: const Text('基盤動作確認へ'),
-            ),
-          ],
-        ),
-      ),
-    );
+  void dispose() {
+    _subscription.close();
+    super.dispose();
   }
 }
