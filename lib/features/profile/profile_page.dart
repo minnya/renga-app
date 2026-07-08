@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../core/auth_state.dart';
-import '../../core/supabase_client.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../feed/intellect_badge.dart';
 import 'profile_controller.dart';
@@ -209,17 +208,6 @@ class _SignedInProfileView extends ConsumerWidget {
                   ),
                   icon: const Icon(Icons.edit),
                   label: Text(l10n.profileEditProfileButton),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      await supabase.auth.signOut();
-                      if (context.mounted) context.go('/login');
-                    },
-                    child: Text(l10n.profileSignOutButton),
-                  ),
                 ),
               ],
             ),

@@ -17,6 +17,11 @@ import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/quiz/quiz_controller.dart';
 import '../features/quiz/quiz_page.dart';
+import '../features/settings/delete_account_page.dart';
+import '../features/settings/display_settings_page.dart';
+import '../features/settings/language_settings_page.dart';
+import '../features/settings/password_change_page.dart';
+import '../features/settings/profile_edit_page.dart';
 import '../features/settings/settings_page.dart';
 import 'main_shell.dart';
 
@@ -161,6 +166,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings',
         pageBuilder: (context, state) => _fadeSlidePage(context, state, const SettingsPage()),
+        // design/product.md 3.11節: Settings画面自体は設定項目への遷移リストのみを表示し、
+        // 各行のタップで専用のサブページへ`push`する。
+        routes: [
+          GoRoute(
+            path: 'profile',
+            pageBuilder: (context, state) => _fadeSlidePage(context, state, const ProfileEditPage()),
+          ),
+          GoRoute(
+            path: 'password',
+            pageBuilder: (context, state) => _fadeSlidePage(context, state, const PasswordChangePage()),
+          ),
+          GoRoute(
+            path: 'delete-account',
+            pageBuilder: (context, state) => _fadeSlidePage(context, state, const DeleteAccountPage()),
+          ),
+          GoRoute(
+            path: 'display',
+            pageBuilder: (context, state) => _fadeSlidePage(context, state, const DisplaySettingsPage()),
+          ),
+          GoRoute(
+            path: 'language',
+            pageBuilder: (context, state) => _fadeSlidePage(context, state, const LanguageSettingsPage()),
+          ),
+        ],
       ),
       GoRoute(
         path: '/onboarding-quiz',

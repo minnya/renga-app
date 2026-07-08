@@ -1,22 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show User;
 
 import '../../core/auth_state.dart';
-import '../../core/locale_controller.dart';
 import '../../core/supabase_client.dart';
-import '../../core/theme_mode_controller.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../feed/feed_controller.dart';
 
 const _kNotificationEnabledKey = 'notifications_enabled';
 
 /// design/product.md 3.11節「Settings（設定）画面」。
 ///
-/// アカウント、通知、表示設定（レイヤーフィルター、テーマモード）、表示言語の各セクションを実装。
-/// 選択肢から1つを選ぶ項目（レイヤーフィルター・テーマ・言語）はボトムシートで編集する
-/// （画面内にドロップダウンを直接置かない）。通知ON/OFFは単純なトグルのため画面内で直接切り替える。
+/// Settings画面自体は**設定項目への遷移リストのみ**を表示し、実際の値の変更UI
+/// （フォーム入力・選択肢の確定操作）は各サブページに委ねる。例外は「通知のON/OFF」
+/// のようなその場で完結する単純なトグルのみで、これは従来どおり画面内で直接切り替える。
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
@@ -36,8 +34,6 @@ class SettingsPage extends ConsumerWidget {
           const _NotificationSection(),
           const Divider(height: 24),
           const _DisplaySettingsSection(),
-          const Divider(height: 24),
-          const _LanguageSection(),
           const SizedBox(height: 24),
         ],
       ),
@@ -45,7 +41,7 @@ class SettingsPage extends ConsumerWidget {
   }
 }
 
-/// セクション1: アカウント（ログイン中のメール表示、ログアウトボタン）
+/// セクション1: アカウント（ログイン中のメール表示、各サブページへの導線、ログアウトボタン）
 class _AccountSection extends ConsumerWidget {
   final User? user;
 
@@ -91,6 +87,29 @@ class _AccountSection extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 4),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(localization.profileEditProfileButton),
+            subtitle: Text(localization.settingsProfileRowSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/profile'),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(localization.settingsPasswordChangeLabel),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/password'),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              localization.settingsDeleteAccountLabel,
+              style: TextStyle(color: Colors.red[600]),
+            ),
+            trailing: Icon(Icons.chevron_right, color: Colors.red[600]),
+            onTap: () => context.push('/settings/delete-account'),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -202,63 +221,9 @@ class _NotificationSection extends ConsumerWidget {
   }
 }
 
-/// 単一選択肢を選ぶための共通ボトムシート。
-/// design/system.md 9章「設定・編集系UIの方針」。intellect_badge.dartと同じ角丸の意匠。
-Future<void> _showChoiceSheet<T>({
-  required BuildContext context,
-  required String title,
-  required T currentValue,
-  required List<(T, String)> options,
-  required ValueChanged<T> onSelected,
-}) {
-  return showModalBottomSheet<void>(
-    context: context,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (sheetContext) {
-      final theme = Theme.of(sheetContext);
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-              RadioGroup<T>(
-                groupValue: currentValue,
-                onChanged: (value) {
-                  if (value != null) {
-                    onSelected(value);
-                  }
-                  Navigator.pop(sheetContext);
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final option in options)
-                      RadioListTile<T>(
-                        value: option.$1,
-                        title: Text(option.$2),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-/// セクション3: 表示設定（レイヤーフィルター、テーマモード）。ボトムシートで選択する。
+/// セクション3: 表示設定（表示設定サブページ）・表示言語（言語サブページ）への導線。
+/// design/product.md 3.11節: 選択肢一覧はSettings画面には埋め込まず、専用サブページで
+/// 選ぶと即座に確定して前の画面へ戻る。
 class _DisplaySettingsSection extends ConsumerWidget {
   const _DisplaySettingsSection();
 
@@ -266,8 +231,6 @@ class _DisplaySettingsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final localization = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final currentFilter = ref.watch(layerFilterProvider);
-    final currentThemeMode = ref.watch(themeModeProvider);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -283,105 +246,20 @@ class _DisplaySettingsSection extends ConsumerWidget {
           const SizedBox(height: 12),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text(localization.settingsLayerFilterLabel),
-            subtitle: Text(_layerFilterLabel(currentFilter, localization)),
+            title: Text(localization.settingsDisplaySectionTitle),
+            subtitle: Text(localization.settingsLayerFilterLabel),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showChoiceSheet<LayerFilter>(
-              context: context,
-              title: localization.settingsLayerFilterLabel,
-              currentValue: currentFilter,
-              options: [
-                (LayerFilter.all, localization.feedFilterAll),
-                (LayerFilter.top25, localization.feedFilterTop25),
-                (LayerFilter.top5, localization.feedFilterTop5),
-              ],
-              onSelected: (value) => ref.read(layerFilterProvider.notifier).select(value),
-            ),
+            onTap: () => context.push('/settings/display'),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text(localization.settingsThemeModeLabel),
-            subtitle: Text(_themeModeLabel(currentThemeMode, localization)),
+            title: Text(localization.settingsLanguageSectionTitle),
+            subtitle: Text(localization.settingsLanguageLabel),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showChoiceSheet<ThemeMode>(
-              context: context,
-              title: localization.settingsThemeModeLabel,
-              currentValue: currentThemeMode,
-              options: [
-                (ThemeMode.light, localization.settingsThemeModeLight),
-                (ThemeMode.dark, localization.settingsThemeModeDark),
-                (ThemeMode.system, localization.settingsThemeModeSystem),
-              ],
-              onSelected: (value) => ref.read(themeModeProvider.notifier).setThemeMode(value),
-            ),
+            onTap: () => context.push('/settings/language'),
           ),
         ],
       ),
     );
-  }
-
-  String _layerFilterLabel(LayerFilter filter, AppLocalizations l10n) => switch (filter) {
-        LayerFilter.all => l10n.feedFilterAll,
-        LayerFilter.top25 => l10n.feedFilterTop25,
-        LayerFilter.top5 => l10n.feedFilterTop5,
-      };
-
-  String _themeModeLabel(ThemeMode mode, AppLocalizations l10n) => switch (mode) {
-        ThemeMode.light => l10n.settingsThemeModeLight,
-        ThemeMode.dark => l10n.settingsThemeModeDark,
-        ThemeMode.system => l10n.settingsThemeModeSystem,
-      };
-}
-
-/// セクション4: 表示言語（英語/日本語/端末追従）。ボトムシートで選択する。
-class _LanguageSection extends ConsumerWidget {
-  const _LanguageSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final localization = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final currentLocale = ref.watch(localeProvider);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            localization.settingsLanguageSectionTitle,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(localization.settingsLanguageLabel),
-            subtitle: Text(_localeLabel(currentLocale, localization)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showChoiceSheet<Locale?>(
-              context: context,
-              title: localization.settingsLanguageLabel,
-              currentValue: currentLocale,
-              options: [
-                (null, localization.settingsLanguageSystem),
-                (const Locale('en'), localization.settingsLanguageEnglish),
-                (const Locale('ja'), localization.settingsLanguageJapanese),
-              ],
-              onSelected: (value) => ref.read(localeProvider.notifier).setLocale(value),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _localeLabel(Locale? locale, AppLocalizations l10n) {
-    if (locale == null) return l10n.settingsLanguageSystem;
-    return switch (locale.languageCode) {
-      'ja' => l10n.settingsLanguageJapanese,
-      _ => l10n.settingsLanguageEnglish,
-    };
   }
 }
