@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -63,59 +64,103 @@ class AuthController extends AsyncNotifier<void> {
     });
   }
 
-  /// Google Sign-InでログインしSupabase Authと連携する。
+  /// `.env`の`GOOGLE_OAUTH_CLIENT_ID`を読み込む（未設定時は`AuthFailure`を投げる）。
+  String _requireGoogleClientId() {
+    final clientId = dotenv.env['GOOGLE_OAUTH_CLIENT_ID'];
+    if (clientId == null || clientId.isEmpty) {
+      throw AuthFailure(
+        'GOOGLE_OAUTH_CLIENT_ID が .env に設定されていません。'
+        '.env.example を参考に設定してください。',
+      );
+    }
+    return clientId;
+  }
+
+  /// `GoogleSignIn.instance`を初期化する。ボタン表示・サインイン開始のどちらの前にも必要。
+  ///
+  /// google_sign_in_webは`serverClientId`を受け付けない
+  /// （`assert(params.serverClientId == null, 'serverClientId is not supported on Web.')`）ため、
+  /// Webでは代わりに`clientId`として同じ値を渡す。ネイティブ（Android/iOS）は`serverClientId`のままでよい。
+  ///
+  /// `GoogleSignIn.instance.initialize()`は二重呼び出しで`Bad state: init() has already been
+  /// called.`を投げるため、アプリ全体で1回だけ実行されるようFutureをキャッシュする
+  /// （`LoginPage`は認証状態のリダイレクトで複数回マウントされ得るため）。
+  Future<void> initializeGoogleSignIn() {
+    return _googleSignInInitFuture ??= () async {
+      final clientId = _requireGoogleClientId();
+      if (kIsWeb) {
+        await GoogleSignIn.instance.initialize(clientId: clientId);
+      } else {
+        await GoogleSignIn.instance.initialize(serverClientId: clientId);
+      }
+    }();
+  }
+
+  static Future<void>? _googleSignInInitFuture;
+
+  /// Google Sign-InでログインしSupabase Authと連携する（Android/iOS向け）。
   ///
   /// design/system.md 9章の方式に従い、`google_sign_in`パッケージでGoogle認証を行い、
   /// 取得したIDトークン（+アクセストークン）を`Supabase.instance.client.auth.signInWithIdToken`
   /// に渡してSupabase Auth側のセッションを確立する。
   ///
-  /// クライアントID（Web/サーバー用）は`.env`の`GOOGLE_OAUTH_CLIENT_ID`から読み込む
-  /// （未設定の場合はエラーとして扱う。実APIキーが無い開発環境ではボタン押下時に失敗するのみで、
-  /// アプリの起動やビルド自体は妨げない）。
+  /// **Web版では使えない**: google_sign_in_webはプライバシー保護（FedCM）の都合上
+  /// `authenticate()`のプログラム的な呼び出しを`UnimplementedError`にする。Webでは
+  /// 代わりに[google_signin_button.dart]のGIS公式ボタンをユーザーがクリックし、
+  /// [handleGoogleAuthenticationEvent]で結果を受け取る（`login_page.dart`を参照）。
   Future<void> signInWithGoogle() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final serverClientId = dotenv.env['GOOGLE_OAUTH_CLIENT_ID'];
-      if (serverClientId == null || serverClientId.isEmpty) {
-        throw AuthFailure(
-          'GOOGLE_OAUTH_CLIENT_ID が .env に設定されていません。'
-          '.env.example を参考に設定してください。',
-        );
-      }
-
+      _requireGoogleClientId();
       try {
-        final googleSignIn = GoogleSignIn.instance;
-        await googleSignIn.initialize(serverClientId: serverClientId);
-
-        final googleUser = await googleSignIn.authenticate();
-        final idToken = googleUser.authentication.idToken;
-        if (idToken == null) {
-          throw AuthFailure('GoogleアカウントからIDトークンを取得できませんでした');
-        }
-
-        // アクセストークンはSupabase側では必須ではないが、あわせて渡すことでGoogle側の
-        // 追加スコープ（email等）の権限情報も連携できる。取得に失敗しても致命的ではないため無視する。
-        String? accessToken;
-        try {
-          final authorization =
-              await googleUser.authorizationClient.authorizationForScopes(['email']) ??
-              await googleUser.authorizationClient.authorizeScopes(['email']);
-          accessToken = authorization.accessToken;
-        } catch (_) {
-          accessToken = null;
-        }
-
-        await supabase.auth.signInWithIdToken(
-          provider: OAuthProvider.google,
-          idToken: idToken,
-          accessToken: accessToken,
-        );
+        final googleUser = await GoogleSignIn.instance.authenticate();
+        await _signInToSupabaseWithGoogleUser(googleUser);
       } on GoogleSignInException catch (e) {
         throw AuthFailure('Googleサインインに失敗しました: ${e.description ?? e.code}');
       } on AuthException catch (e) {
         throw AuthFailure(e.message);
       }
     });
+  }
+
+  /// Web版。GIS公式ボタン（`GoogleSignIn.instance.authenticationEvents`）経由のサインイン結果を
+  /// 受け取り、Supabase Authと連携する。`login_page.dart`が`authenticationEvents`を購読して呼び出す。
+  Future<void> handleGoogleAuthenticationEvent(GoogleSignInAuthenticationEvent event) async {
+    if (event is! GoogleSignInAuthenticationEventSignIn) return;
+
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      try {
+        await _signInToSupabaseWithGoogleUser(event.user);
+      } on AuthException catch (e) {
+        throw AuthFailure(e.message);
+      }
+    });
+  }
+
+  Future<void> _signInToSupabaseWithGoogleUser(GoogleSignInAccount googleUser) async {
+    final idToken = googleUser.authentication.idToken;
+    if (idToken == null) {
+      throw AuthFailure('GoogleアカウントからIDトークンを取得できませんでした');
+    }
+
+    // アクセストークンはSupabase側では必須ではないが、あわせて渡すことでGoogle側の
+    // 追加スコープ（email等）の権限情報も連携できる。取得に失敗しても致命的ではないため無視する。
+    String? accessToken;
+    try {
+      final authorization =
+          await googleUser.authorizationClient.authorizationForScopes(['email']) ??
+          await googleUser.authorizationClient.authorizeScopes(['email']);
+      accessToken = authorization.accessToken;
+    } catch (_) {
+      accessToken = null;
+    }
+
+    await supabase.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: idToken,
+      accessToken: accessToken,
+    );
   }
 }
 

@@ -1,8 +1,13 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import 'auth_controller.dart';
+import 'google_signin_button.dart';
 
 /// メールアドレス/パスワードでのログイン画面。
 class LoginPage extends ConsumerStatefulWidget {
@@ -16,11 +21,45 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  StreamSubscription<GoogleSignInAuthenticationEvent>? _googleAuthSubscription;
+  bool _googleSignInReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initGoogleSignIn();
+  }
+
+  /// design/system.md 9章。Web版はGIS公式ボタンをクリックすると
+  /// `authenticationEvents`にサインイン結果が流れてくるため、ここで購読して
+  /// `auth_controller.dart`側でSupabase Authと連携する。
+  Future<void> _initGoogleSignIn() async {
+    try {
+      await ref.read(authControllerProvider.notifier).initializeGoogleSignIn();
+      if (kIsWeb) {
+        _googleAuthSubscription = GoogleSignIn.instance.authenticationEvents.listen((
+          event,
+        ) async {
+          await ref.read(authControllerProvider.notifier).handleGoogleAuthenticationEvent(event);
+          if (!mounted) return;
+          final state = ref.read(authControllerProvider);
+          if (!state.hasError) {
+            context.go('/');
+          }
+        });
+      }
+      if (mounted) setState(() => _googleSignInReady = true);
+    } catch (_) {
+      // GOOGLE_OAUTH_CLIENT_ID未設定時などはボタンを出さないだけに留める
+      // （メール/パスワード認証は引き続き利用できる）。
+    }
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _googleAuthSubscription?.cancel();
     super.dispose();
   }
 
@@ -131,11 +170,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: isLoading ? null : _submitWithGoogle,
-                    icon: const Icon(Icons.g_mobiledata),
-                    label: const Text('Googleでログイン'),
-                  ),
+                  if (!_googleSignInReady)
+                    const SizedBox.shrink()
+                  else if (kIsWeb)
+                    // design/system.md 9章補足: WebはGIS公式ボタンをそのまま描画する
+                    // （`authenticate()`のプログラム的な呼び出しは`UnimplementedError`になるため）。
+                    // renderButton()はHtmlElementViewを内包し固有サイズを持たないため、
+                    // 明示的にサイズを与える必要がある。
+                    Center(
+                      child: SizedBox(width: 300, height: 44, child: buildGoogleSignInButton()),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: isLoading ? null : _submitWithGoogle,
+                      icon: const Icon(Icons.g_mobiledata),
+                      label: const Text('Googleでログイン'),
+                    ),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: isLoading ? null : () => context.go('/signup'),
