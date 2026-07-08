@@ -8,6 +8,8 @@
 // - SupabaseのJWTを検証し、ログイン済みユーザーのみ呼び出せるようにする。
 // - system.md 12章の運用方針に従い、アップロード可能な動画の長さの上限を
 //   Mux側の `max_duration_seconds` としても指定し、コスト増大を防ぐ。
+// - Flutter Web（ブラウザ）から直接呼び出されるため、CORSプリフライト（OPTIONS）と
+//   すべてのレスポンスへのAccess-Control-Allow-Originヘッダーが必須。
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -15,21 +17,38 @@ const MUX_UPLOAD_ENDPOINT = 'https://api.mux.com/video/v1/uploads';
 // system.md 12章「アップロード動画の長さを制限」（例: 60〜90秒）。
 const MAX_VIDEO_DURATION_SECONDS = 90;
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+function jsonResponse(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'method not allowed' }), { status: 405 });
+    return jsonResponse({ error: 'method not allowed' }, 405);
   }
 
   // 認証済みユーザーのみ呼び出し可能にする（SupabaseのJWT検証）。
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'missing Authorization header' }), { status: 401 });
+    return jsonResponse({ error: 'missing Authorization header' }, 401);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
   if (!supabaseUrl || !supabaseAnonKey) {
-    return new Response(JSON.stringify({ error: 'server misconfigured' }), { status: 500 });
+    return jsonResponse({ error: 'server misconfigured' }, 500);
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -37,13 +56,13 @@ Deno.serve(async (req: Request) => {
   });
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData?.user) {
-    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+    return jsonResponse({ error: 'unauthorized' }, 401);
   }
 
   const muxTokenId = Deno.env.get('MUX_TOKEN_ID');
   const muxTokenSecret = Deno.env.get('MUX_TOKEN_SECRET');
   if (!muxTokenId || !muxTokenSecret) {
-    return new Response(JSON.stringify({ error: 'Mux credentials not configured' }), { status: 500 });
+    return jsonResponse({ error: 'Mux credentials not configured' }, 500);
   }
 
   const basicAuth = btoa(`${muxTokenId}:${muxTokenSecret}`);
@@ -67,10 +86,7 @@ Deno.serve(async (req: Request) => {
 
   if (!muxResponse.ok) {
     const errorBody = await muxResponse.text();
-    return new Response(
-      JSON.stringify({ error: 'failed to create Mux upload', detail: errorBody }),
-      { status: 502 },
-    );
+    return jsonResponse({ error: 'failed to create Mux upload', detail: errorBody }, 502);
   }
 
   const muxJson = await muxResponse.json();
@@ -78,15 +94,15 @@ Deno.serve(async (req: Request) => {
   const uploadId = muxJson?.data?.id;
 
   if (!uploadUrl || !uploadId) {
-    return new Response(JSON.stringify({ error: 'unexpected Mux response' }), { status: 502 });
+    return jsonResponse({ error: 'unexpected Mux response' }, 502);
   }
 
-  return new Response(
-    JSON.stringify({
+  return jsonResponse(
+    {
       upload_url: uploadUrl,
       upload_id: uploadId,
       max_duration_seconds: MAX_VIDEO_DURATION_SECONDS,
-    }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } },
+    },
+    200,
   );
 });
