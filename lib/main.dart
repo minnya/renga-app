@@ -9,8 +9,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
 import 'core/firebase_client.dart';
+import 'core/locale_controller.dart';
 import 'core/share_intent_service.dart';
 import 'core/supabase_client.dart';
+import 'core/theme_mode_controller.dart';
 import 'features/feed/youtube_utils.dart';
 import 'l10n/gen/app_localizations.dart';
 
@@ -96,12 +98,18 @@ class _RengaAppState extends ConsumerState<RengaApp> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeModeProvider);
+    final localeOverride = ref.watch(localeProvider);
+
     // design/product.md 5章「多言語対応」: 既定言語は英語(en)、日本語(ja)を追加ロケールとして提供する。
     // 端末ロケールが未対応の場合は AppLocalizations が自動的に英語(テンプレート言語)にフォールバックする。
+    // design/product.md 3.11節「Settings画面」: ユーザーがテーマ・言語を選択できる。
     return MaterialApp.router(
       title: 'Renga',
       theme: buildRengaLightTheme(),
       darkTheme: buildRengaDarkTheme(),
+      themeMode: themeMode,
+      locale: localeOverride,
       routerConfig: router,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
