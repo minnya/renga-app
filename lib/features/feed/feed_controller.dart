@@ -2,8 +2,10 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/auth_state.dart';
 import '../../core/supabase_client.dart';
 import 'post.dart';
 import 'youtube_utils.dart';
@@ -11,8 +13,117 @@ import 'youtube_utils.dart';
 /// design/product.md 4章の「レイヤーフィルター」（全ユーザー/上位25%/上位5%）。
 enum LayerFilter { all, top25, top5 }
 
+/// [LayerFilter] <-> `profiles.default_layer_filter`（text列、
+/// `supabase/migrations/20260708090000_add_default_layer_filter.sql`）・
+/// SharedPreferencesの文字列表現の相互変換。
+extension LayerFilterCodec on LayerFilter {
+  String toDbValue() => switch (this) {
+    LayerFilter.all => 'all',
+    LayerFilter.top25 => 'top25',
+    LayerFilter.top5 => 'top5',
+  };
+
+  static LayerFilter fromDbValue(String? value) => switch (value) {
+    'top25' => LayerFilter.top25,
+    'top5' => LayerFilter.top5,
+    _ => LayerFilter.all,
+  };
+}
+
+/// SharedPreferencesに保存する際のキー。
+const _kLayerFilterPrefsKey = 'layer_filter';
+
+/// 現在選択中のレイヤーフィルター（design/product.md 3.3節）。
+///
+/// 設計方針:
+/// - 起動直後はまずSharedPreferencesのローカル値を反映する。`build()`自体は同期的に
+///   `LayerFilter.all`を返し、その直後に非同期でローカル値を読み込んで`state`へ反映する
+///   （オフラインでも即座に選択状態を表示できるようにするため、`build()`をasyncにせず
+///   `Notifier`＋fire-and-forgetの初期ロードとしている）。
+/// - ログイン中であれば続けてバックグラウンドで`profiles.default_layer_filter`を取得し、
+///   ローカル値と異なる場合はアカウント側の値を優先して採用する。複数端末間で同期させる
+///   ことを優先し、「直近のローカル選択」より「アカウントに同期済みの値」を正とするシンプルな
+///   方針とした（アカウント値が存在しない/取得失敗時はローカル値をそのまま維持）。
+/// - ログイン状態が変化した（別アカウントでログインした）場合も同様にアカウント側の値へ
+///   同期し直す。
+/// - ユーザーが明示的に変更した場合（[select]）は、SharedPreferencesへの書き込みと、
+///   ログイン中なら`profiles`テーブルへのupdateの両方を行う。
+class LayerFilterNotifier extends Notifier<LayerFilter> {
+  @override
+  LayerFilter build() {
+    // ログインユーザーが切り替わったら（null→ユーザー、または別ユーザー）アカウント側の値へ
+    // 同期し直す。
+    ref.listen<User?>(currentUserProvider, (previous, next) {
+      if (next != null && next.id != previous?.id) {
+        _syncFromAccount(next.id);
+      }
+    });
+
+    // ignore: discarded_futures
+    _loadInitial();
+    return LayerFilter.all;
+  }
+
+  Future<void> _loadInitial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final localValue = LayerFilterCodec.fromDbValue(prefs.getString(_kLayerFilterPrefsKey));
+    state = localValue;
+
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      await _syncFromAccount(user.id, prefs: prefs);
+    }
+  }
+
+  /// ログイン中のアカウントが持つ`profiles.default_layer_filter`を取得し、現在の`state`と
+  /// 異なればアカウント側の値を採用してローカルにも書き戻す。
+  Future<void> _syncFromAccount(String userId, {SharedPreferences? prefs}) async {
+    try {
+      final row = await supabase
+          .from('profiles')
+          .select('default_layer_filter')
+          .eq('id', userId)
+          .maybeSingle();
+      final remoteRaw = row?['default_layer_filter'] as String?;
+      if (remoteRaw == null) return;
+
+      final remoteValue = LayerFilterCodec.fromDbValue(remoteRaw);
+      if (remoteValue != state) {
+        state = remoteValue;
+        final resolvedPrefs = prefs ?? await SharedPreferences.getInstance();
+        await resolvedPrefs.setString(_kLayerFilterPrefsKey, remoteValue.toDbValue());
+      }
+    } catch (_) {
+      // オフライン等でアカウント側の取得に失敗してもローカル値の表示は継続する。
+    }
+  }
+
+  /// ユーザーがフィルターを変更した際に呼ぶ。ローカル保存＋（ログイン中のみ）
+  /// アカウント側の`profiles.default_layer_filter`への同期の両方を行う。
+  Future<void> select(LayerFilter filter) async {
+    state = filter;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLayerFilterPrefsKey, filter.toDbValue());
+
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await supabase
+          .from('profiles')
+          .update({'default_layer_filter': filter.toDbValue()})
+          .eq('id', user.id);
+    } catch (_) {
+      // ネットワークエラー等でアカウント同期に失敗してもローカルの選択状態は維持する。
+    }
+  }
+}
+
 /// 現在選択中のレイヤーフィルター。
-final layerFilterProvider = StateProvider<LayerFilter>((ref) => LayerFilter.all);
+final layerFilterProvider = NotifierProvider<LayerFilterNotifier, LayerFilter>(
+  LayerFilterNotifier.new,
+);
 
 /// design/system.md 1章の `posts` テーブルから投稿一覧（作成日時降順・最大50件）を取得する。
 ///
