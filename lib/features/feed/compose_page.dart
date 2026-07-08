@@ -248,161 +248,238 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     final isLoggedIn = currentUser != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.composeAppBarTitle)),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (!isLoggedIn)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  l10n.composeLoginPrompt,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            // design/product.md 3.4節「通常投稿 / ステーキング投稿」の切替UI。
-            // feed_page.dartのレイヤーフィルターと同じSegmentedButtonパターンに倣う。
-            SegmentedButton<_ComposeMode>(
-              segments: [
-                ButtonSegment(value: _ComposeMode.normal, label: Text(l10n.composeNormalModeLabel)),
-                ButtonSegment(value: _ComposeMode.staked, label: Text(l10n.composeStakedModeLabel)),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (isLoggedIn && !_isSubmitting)
-                  ? (selection) => setState(() => _mode = selection.first)
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _controller,
-              minLines: 4,
-              maxLines: 10,
-              enabled: isLoggedIn && !_isSubmitting,
-              decoration: InputDecoration(
-                hintText: l10n.composeBodyHint,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            if (_mode == _ComposeMode.staked) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _stakedTpController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                enabled: isLoggedIn && !_isSubmitting,
-                decoration: InputDecoration(
-                  labelText: l10n.composeStakedTpLabel,
-                  helperText: l10n.composeStakedTpHelper,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            if (_mode == _ComposeMode.normal) ...[
-              if (_selectedImageBytes != null)
-                Stack(
-                  alignment: Alignment.topRight,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.memory(
-                        _selectedImageBytes!,
-                        height: 180,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _isSubmitting ? null : _clearImage,
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      style: IconButton.styleFrom(backgroundColor: Colors.black45),
-                    ),
-                  ],
-                )
-              else if (_selectedVideo != null)
-                Stack(
-                  alignment: Alignment.topRight,
-                  children: [
-                    Container(
-                      height: 100,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.black12,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(_selectedVideo!.name),
-                            if (_videoUploadProgress != null) ...[
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: 160,
-                                child: LinearProgressIndicator(value: _videoUploadProgress),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _isSubmitting ? null : _clearVideo,
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                )
-              else
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: isLoggedIn && !_isSubmitting ? _pickImage : null,
-                        icon: const Icon(Icons.image_outlined),
-                        label: Text(l10n.composePickImageButton),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: isLoggedIn && !_isSubmitting ? _pickVideo : null,
-                        icon: const Icon(Icons.videocam_outlined),
-                        label: Text(l10n.composePickVideoButton),
-                      ),
-                    ),
-                  ],
-                ),
-              // design/system.md 5.3節。本文にYouTube URLが含まれる場合の自動プレビュー。
-              if (_youtubeController != null) ...[
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: YoutubePlayer(controller: _youtubeController!),
-                ),
-              ],
-            ],
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _errorMessage!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            const SizedBox(height: 16),
-            ElevatedButton(
+      appBar: AppBar(
+        // X(Twitter)風：左キャンセル、右投稿ボタン
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: isLoggedIn ? () => context.go('/') : null,
+        ),
+        title: const SizedBox.shrink(),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: FilledButton(
               onPressed: isLoggedIn && !_isSubmitting ? _submit : null,
               child: _isSubmitting
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
                     )
                   : Text(l10n.composeSubmitButton),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: _isSubmitting
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!isLoggedIn)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            l10n.composeLoginPrompt,
+                            style: TextStyle(color: Theme.of(context).colorScheme.error),
+                          ),
+                        ),
+                      // 本文入力欄：ボーダーなし、大きめテキスト
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: TextField(
+                          controller: _controller,
+                          minLines: 4,
+                          maxLines: 10,
+                          enabled: isLoggedIn && !_isSubmitting,
+                          style: const TextStyle(fontSize: 18),
+                          decoration: InputDecoration(
+                            hintText: l10n.composeBodyHint,
+                            hintStyle: TextStyle(
+                              fontSize: 18,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                      // メディア表示（通常投稿のみ）
+                      if (_mode == _ComposeMode.normal) ...[
+                        if (_selectedImageBytes != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Stack(
+                              alignment: Alignment.topRight,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.memory(
+                                    _selectedImageBytes!,
+                                    height: 200,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: _isSubmitting ? null : _clearImage,
+                                  icon: const Icon(Icons.close, color: Colors.white),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.black45,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (_selectedVideo != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Stack(
+                              alignment: Alignment.topRight,
+                              children: [
+                                Container(
+                                  height: 140,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.videocam,
+                                          size: 40,
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          _selectedVideo!.name,
+                                          style: TextStyle(
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        if (_videoUploadProgress != null) ...[
+                                          const SizedBox(height: 8),
+                                          SizedBox(
+                                            width: 160,
+                                            child: LinearProgressIndicator(
+                                              value: _videoUploadProgress,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: _isSubmitting ? null : _clearVideo,
+                                  icon: const Icon(Icons.close, color: Colors.white),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.black45,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        // YouTube プレビュー
+                        if (_youtubeController != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: YoutubePlayer(controller: _youtubeController!),
+                            ),
+                          ),
+                      ],
+                      // エラーメッセージ
+                      if (_errorMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            _errorMessage!,
+                            style: TextStyle(color: Theme.of(context).colorScheme.error),
+                          ),
+                        ),
+                      // ステーキング投稿の場合、TP入力フィールド
+                      if (_mode == _ComposeMode.staked)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: TextField(
+                            controller: _stakedTpController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                            enabled: isLoggedIn && !_isSubmitting,
+                            decoration: InputDecoration(
+                              labelText: l10n.composeStakedTpLabel,
+                              helperText: l10n.composeStakedTpHelper,
+                              border: const OutlineInputBorder(
+                                borderRadius: BorderRadius.all(Radius.circular(8)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      // 下部ツールバー：X(Twitter)投稿画面風のアイコン行
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12, bottom: 16),
+                        child: Divider(
+                          color: Theme.of(context).colorScheme.outline,
+                          height: 1,
+                        ),
+                      ),
+                      // 投稿モード切替（SegmentedButton）
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: SegmentedButton<_ComposeMode>(
+                          segments: [
+                            ButtonSegment(
+                              value: _ComposeMode.normal,
+                              label: Text(l10n.composeNormalModeLabel),
+                            ),
+                            ButtonSegment(
+                              value: _ComposeMode.staked,
+                              label: Text(l10n.composeStakedModeLabel),
+                            ),
+                          ],
+                          selected: {_mode},
+                          onSelectionChanged: (isLoggedIn && !_isSubmitting)
+                              ? (selection) => setState(() => _mode = selection.first)
+                              : null,
+                        ),
+                      ),
+                      // ツールバーアイコン行：画像・動画選択（通常投稿のみ）
+                      if (_mode == _ComposeMode.normal && _selectedImageBytes == null && _selectedVideo == null)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.image_outlined),
+                              onPressed: isLoggedIn && !_isSubmitting ? _pickImage : null,
+                              tooltip: l10n.composePickImageButton,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.videocam_outlined),
+                              onPressed: isLoggedIn && !_isSubmitting ? _pickVideo : null,
+                              tooltip: l10n.composePickVideoButton,
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
   }
