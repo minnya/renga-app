@@ -137,8 +137,8 @@ class _OnboardingQuizBanner extends ConsumerWidget {
           margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: ListTile(
             leading: const Icon(Icons.school_outlined),
-            title: const Text('はじめてのクイズに挑戦しよう'),
-            subtitle: const Text('3問に答えると暫定Intellectランクが決まります'),
+            title: Text(AppLocalizations.of(context).feedOnboardingBannerTitle),
+            subtitle: Text(AppLocalizations.of(context).feedOnboardingBannerSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/onboarding-quiz'),
           ),
@@ -149,6 +149,45 @@ class _OnboardingQuizBanner extends ConsumerWidget {
     );
   }
 }
+
+/// アクションバーのボタン（いいね・コメント・リポスト・共有用）。
+/// Instagram/X風のシンプルなアイコンボタン。
+class _ActionBarButton extends StatelessWidget {
+  const _ActionBarButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _PostTile extends StatefulWidget {
   const _PostTile({required this.post});
@@ -187,68 +226,122 @@ class _PostTileState extends State<_PostTile> {
     final imageUrl = post.mediaType == 'image' && (post.mediaUrls?.isNotEmpty ?? false)
         ? post.mediaUrls!.first
         : null;
+    final l10n = AppLocalizations.of(context);
+
+    final authorName = post.authorUsername ?? l10n.feedUnknownUser;
+    final firstLetter = authorName.isNotEmpty ? authorName[0].toUpperCase() : '?';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header: Avatar + Username + Created At
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Theme.of(context).colorScheme.primary.withAlpha((0.3 * 255).toInt()),
                 child: Text(
-                  post.authorUsername ?? '不明なユーザー',
-                  style: Theme.of(context).textTheme.titleSmall,
+                  firstLetter,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
               ),
-              const SizedBox(width: 8),
-              IntellectBadge(percentile: post.authorIntellectPercentile),
-              if (post.postType == 'staked') ...[
-                const SizedBox(width: 8),
-                Chip(
-                  avatar: const Icon(Icons.bolt, size: 14),
-                  label: Text('賭けTP: ${post.stakedTp}', style: const TextStyle(fontSize: 11)),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  backgroundColor: Theme.of(context).colorScheme.tertiaryContainer,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      authorName,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // Metadata row: Badge + Staked TP (if applicable)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        IntellectBadge(percentile: post.authorIntellectPercentile),
+                        if (post.postType == 'staked')
+                          Chip(
+                            avatar: const Icon(Icons.bolt, size: 14),
+                            label: Text(
+                              l10n.feedStakedTpLabel(post.stakedTp as int),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            backgroundColor: Theme.of(context).colorScheme.tertiaryContainer,
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-              const SizedBox(width: 8),
+              ),
+              const SizedBox(width: 12),
               Text(
                 _formatCreatedAt(post.createdAt),
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          // Post body text
           if (post.body.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(post.body),
+            Text(
+              post.body,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
           ],
+          // Image media
           if (imageUrl != null) ...[
-            const SizedBox(height: 8),
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: Image.network(
                 imageUrl,
-                height: 220,
+                height: 240,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const SizedBox(height: 80, child: Center(child: Text('画像を読み込めませんでした'))),
+                errorBuilder: (context, error, stackTrace) => SizedBox(
+                  height: 120,
+                  width: double.infinity,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(l10n.feedImageLoadError),
+                    ),
+                  ),
+                ),
               ),
             ),
+            const SizedBox(height: 12),
           ],
+          // YouTube player
           if (_youtubeController != null) ...[
-            const SizedBox(height: 8),
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: YoutubePlayer(controller: _youtubeController!),
             ),
+            const SizedBox(height: 12),
           ],
+          // Mux video player
           if (post.mediaType == 'video') ...[
-            const SizedBox(height: 8),
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: post.videoStatus == 'ready' && post.videoPlaybackId != null
                   ? MuxVideoPlayerWidget(playbackId: post.videoPlaybackId!)
                   : VideoProcessingPlaceholder(
@@ -256,7 +349,50 @@ class _PostTileState extends State<_PostTile> {
                       status: post.videoStatus ?? 'pending',
                     ),
             ),
+            const SizedBox(height: 12),
           ],
+          // Action bar: Like, Comment, Repost, Share
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _ActionBarButton(
+                icon: Icons.favorite_border,
+                label: l10n.feedActionLike,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${l10n.feedActionLike}: Coming soon')),
+                  );
+                },
+              ),
+              _ActionBarButton(
+                icon: Icons.chat_bubble_outline,
+                label: l10n.feedActionComment,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${l10n.feedActionComment}: Coming soon')),
+                  );
+                },
+              ),
+              _ActionBarButton(
+                icon: Icons.repeat,
+                label: l10n.feedActionRepost,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${l10n.feedActionRepost}: Coming soon')),
+                  );
+                },
+              ),
+              _ActionBarButton(
+                icon: Icons.share_outlined,
+                label: l10n.feedActionShare,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${l10n.feedActionShare}: Coming soon')),
+                  );
+                },
+              ),
+            ],
+          ),
         ],
       ),
     );
