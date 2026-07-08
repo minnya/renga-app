@@ -25,18 +25,28 @@ class FeedPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Renga — フィード'),
         actions: [
-          if (currentUser != null)
+          IconButton(
+            tooltip: 'Discover',
+            onPressed: () => context.go('/discover'),
+            icon: const Icon(Icons.explore_outlined),
+          ),
+          if (currentUser != null) ...[
+            IconButton(
+              tooltip: '通知',
+              onPressed: () => context.go('/notifications'),
+              icon: const Icon(Icons.notifications_outlined),
+            ),
             IconButton(
               tooltip: 'Battle（ロジックチェック）',
               onPressed: () => context.go('/battles'),
               icon: const Icon(Icons.sports_kabaddi_outlined),
             ),
-          if (currentUser != null)
             IconButton(
               tooltip: 'デイリークイズ',
               onPressed: () => context.go('/daily-quiz'),
               icon: const Icon(Icons.quiz_outlined),
             ),
+          ],
         ],
       ),
       body: Column(

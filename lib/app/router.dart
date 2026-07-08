@@ -6,11 +6,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/auth_state.dart';
 import '../features/auth/login_page.dart';
 import '../features/auth/signup_page.dart';
-import '../features/battle/battle_detail_page.dart';
-import '../features/battle/battle_list_page.dart';
 import '../features/debug/connection_check_page.dart';
+import '../features/discover/discover_page.dart';
 import '../features/feed/compose_page.dart';
 import '../features/feed/feed_page.dart';
+import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/quiz/quiz_controller.dart';
 import '../features/quiz/quiz_page.dart';
@@ -45,6 +45,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/signup', builder: (context, state) => const SignupPage()),
       GoRoute(path: '/compose', builder: (context, state) => const ComposePage()),
       GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
+      GoRoute(path: '/discover', builder: (context, state) => const DiscoverPage()),
+      GoRoute(path: '/notifications', builder: (context, state) => const NotificationsPage()),
       GoRoute(
         path: '/onboarding-quiz',
         builder: (context, state) => const QuizPage(kind: QuizKind.onboarding),
@@ -52,11 +54,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/daily-quiz',
         builder: (context, state) => const QuizPage(kind: QuizKind.daily),
-      ),
-      GoRoute(path: '/battles', builder: (context, state) => const BattleListPage()),
-      GoRoute(
-        path: '/battles/:id',
-        builder: (context, state) => BattleDetailPage(battleId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/debug', builder: (context, state) => const ConnectionCheckPage()),
     ],
