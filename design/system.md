@@ -111,6 +111,27 @@ create table public.reposts (
   created_at timestamptz not null default now(),
   unique(post_id, user_id)
 );
+-- RLS: select全公開 + insert-own + delete-own（un-repost用）。3.12節「基本エンゲージメント機能」参照。
+
+-- いいね（基本エンゲージメント機能。3.12節）
+create table public.likes (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique(post_id, user_id)
+);
+-- RLS: select全公開 + insert-own + delete-own（un-like用）。
+
+-- コメント（基本エンゲージメント機能。3.12節）
+create table public.comments (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  author_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+-- RLS: select全公開 + insert-own + delete-own（自分のコメント削除のみ）。
 
 -- Endorse（お墨付き）
 create table public.endorsements (
@@ -278,6 +299,7 @@ create table public.moderation_checks (
 - パーセンタイル（`influence_percentile`, `intellect_percentile`）は定期バッチ（Supabase Scheduled Function / pg_cron）で再計算し、`profiles` に反映するキャッシュ列とする（都度全体集計は無料枠のDB負荷的に不可）。
 - `reach_score` を0にすることでフィード表示ロジック（Edge FunctionまたはPostgRESTのview）が自動的にそのポストを除外する。
 - `quiz_questions.locale` によりユーザーの `profiles.locale` に応じた出題切り替えを行う。日本語ローカライズが手薄な初期段階では英語問題を出しフォールバックする設計とする。
+- `likes` / `comments` / `reposts` の件数はフィード取得時にPostgRESTの集計embed（例: `select=*,likes(count),comments(count),reposts(count)`）で都度取得する。MVP規模（無料枠、投稿数少数）ではキャッシュ列を持たず都度集計で十分と判断し、将来的に投稿数が増えた場合は`posts`テーブルへの非正規化カウンタ列導入を検討する（[12章](#12-無料枠を前提とした制約とスケーリング方針)の考え方に準拠）。
 
 ---
 
@@ -574,6 +596,8 @@ lib/
 - **デザインシステム分離**: `packages/renga_ui` をローカルパッケージ化し、Widgetbookでカタログ管理。
 - **アニメーション**: `rive` または `lottie` をバッジ実績解除・バトル結果発表に使用。
 - **通報/モデレーション**: すべての投稿・動画・プロフィールに通報導線（`RengaReportSheet` 等の共通コンポーネント）を用意し、`reports` テーブルへ書き込む（詳細は [13章](#13-コンテンツモデレーショントrust--safety)）。
+- **共有**: OS標準の共有シートを開くために `share_plus` を使用する（投稿の共有ボタン。3.12節）。`receive_sharing_intent`（既存導入済み、5.3節）は他アプリからの共有受信専用であり、送信側の共有には使わない。
+- **設定・編集系UIの方針**: Settings画面・Profile編集など「値の編集」を伴うUIは、画面に直接埋め込まず`showModalBottomSheet`によるボトムシートに分離する（`lib/features/feed/intellect_badge.dart`の説明ボトムシートと同じ角丸・パディングの意匠を踏襲）。go_router側にモーダル専用のルート種別は設けず、各画面のWidgetから直接呼び出す軽量な構成とする。
 
 ---
 
