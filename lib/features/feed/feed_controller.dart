@@ -183,10 +183,16 @@ final myRepostedPostIdsProvider = FutureProvider<Set<String>>((ref) async {
 });
 
 /// design/product.md 3.12節。投稿へのコメント一覧（作成日時昇順）。
+///
+/// フラットに全件（トップレベル＋返信）を取得し、`parent_comment_id`によるグルーピングは
+/// UI側（[CommentsBottomSheet]）で行う。返信は1階層のみのため、これで十分。
 final commentsProvider = FutureProvider.family<List<Comment>, String>((ref, postId) async {
   final rows = await supabase
       .from('comments')
-      .select('id, post_id, author_id, body, created_at, profiles(username)')
+      .select(
+        'id, post_id, author_id, body, created_at, parent_comment_id, media_urls, '
+        'external_video_url, profiles(username, avatar_url)',
+      )
       .eq('post_id', postId)
       .order('created_at');
   return rows.map((row) => Comment.fromMap(row)).toList();
@@ -326,21 +332,53 @@ class FeedController {
     ref.invalidate(myRepostedPostIdsProvider);
   }
 
-  /// design/product.md 3.12節「コメント」。
-  Future<void> addComment({required String postId, required String body}) async {
+  /// design/product.md 3.12節「コメント」「返信（スレッド化）」。
+  ///
+  /// [parentCommentId] を指定すると当該コメントへの返信として投稿する（1階層のみ）。
+  /// [mediaUrls] は事前に [uploadCommentImage] でアップロード済みの画像URL一覧。
+  /// 動画添付（Mux）は本文投稿とは別に、戻り値の `comments.id` を使って
+  /// `VideoUploadController.uploadVideo(commentId: ...)` を呼び出す2段階フローとなる
+  /// （[createVideoPost]と同様のパターン）。
+  ///
+  /// 戻り値は作成された `comments.id`（動画添付フローで利用するため）。未ログイン・本文空の
+  /// 場合は`null`を返す。
+  Future<String?> addComment({
+    required String postId,
+    required String body,
+    String? parentCommentId,
+    List<String>? mediaUrls,
+  }) async {
     final user = supabase.auth.currentUser;
-    if (user == null) return;
+    if (user == null) return null;
     final trimmed = body.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty && (mediaUrls == null || mediaUrls.isEmpty)) return null;
 
-    await supabase.from('comments').insert({
-      'post_id': postId,
-      'author_id': user.id,
-      'body': trimmed,
-    });
+    final row = await supabase
+        .from('comments')
+        .insert({
+          'post_id': postId,
+          'author_id': user.id,
+          'body': trimmed,
+          if (parentCommentId != null) 'parent_comment_id': parentCommentId,
+          if (mediaUrls != null && mediaUrls.isNotEmpty) 'media_urls': mediaUrls,
+        })
+        .select('id')
+        .single();
 
     ref.invalidate(commentsProvider(postId));
     ref.invalidate(feedPostsProvider);
+
+    return row['id'] as String;
+  }
+
+  /// design/system.md 5章の画像投稿と同じ`post-images`バケットを流用した、
+  /// コメント・返信への画像添付アップロード。
+  Future<String> uploadCommentImage({
+    required String userId,
+    required Uint8List bytes,
+    required String fileExt,
+  }) {
+    return uploadPostImage(userId: userId, bytes: bytes, fileExt: fileExt);
   }
 
   /// design/system.md 4章「Analytics」の主要アクション計測。投稿種別を`post_type`

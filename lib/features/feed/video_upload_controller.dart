@@ -27,14 +27,21 @@ class VideoUploadController {
 
   /// 動画アップロードフロー一式を実行する。
   ///
+  /// [postId] か [commentId] のどちらか一方を指定する（`videos`テーブルの
+  /// `videos_post_or_comment_check`制約に対応。design/system.md 1章）。
   /// [onProgress] にはPUTアップロードの進捗（0.0〜1.0の概算、バイト数ベース）を通知する。
   /// 戻り値は作成された `videos.id`。
   Future<String> uploadVideo({
     required XFile video,
-    required String postId,
+    String? postId,
+    String? commentId,
     required String uploaderId,
     void Function(double progress)? onProgress,
   }) async {
+    assert(
+      (postId == null) != (commentId == null),
+      'postId と commentId のどちらか一方のみを指定してください',
+    );
     // 1. Edge Function経由でMux Direct Upload URLを発行してもらう。
     //    Mux API Token はクライアントに一切露出させず、Edge Function側でのみ保持する
     //    （design/system.md 5.4節）。
@@ -52,7 +59,8 @@ class VideoUploadController {
     final videoRow = await supabase
         .from('videos')
         .insert({
-          'post_id': postId,
+          if (postId != null) 'post_id': postId,
+          if (commentId != null) 'comment_id': commentId,
           'uploader_id': uploaderId,
           'mux_upload_id': muxUploadId,
           'status': 'uploading',

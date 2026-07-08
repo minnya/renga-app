@@ -54,6 +54,44 @@
       }
     }
   },
+  "feedCommentReplyButton": "Reply",
+  "feedCommentReplyInputHint": "Write a reply...",
+  "feedCommentReplyingTo": "Replying to @{username}",
+  "@feedCommentReplyingTo": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "feedCommentAttachImageButton": "Attach image",
+  "feedCommentAttachVideoButton": "Attach video",
+  "feedCommentRemoveAttachmentButton": "Remove attachment",
+  "feedCommentTimeJustNow": "Just now",
+  "feedCommentTimeMinutesAgo": "{minutes}m ago",
+  "@feedCommentTimeMinutesAgo": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "feedCommentTimeHoursAgo": "{hours}h ago",
+  "@feedCommentTimeHoursAgo": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "feedCommentTimeDaysAgo": "{days}d ago",
+  "@feedCommentTimeDaysAgo": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "feedLikeError": "Failed to update like: {error}",
   "@feedLikeError": {
     "placeholders": {
