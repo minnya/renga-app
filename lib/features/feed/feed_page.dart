@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../../core/auth_state.dart';
 import '../quiz/quiz_controller.dart';
@@ -8,6 +9,7 @@ import 'feed_controller.dart';
 import 'intellect_badge.dart';
 import 'native_ad_tile.dart';
 import 'post.dart';
+import 'video_player_widget.dart';
 
 /// design/system.md 10章「マネタイズ（AdMob）実装」。投稿10件ごとにネイティブ広告を差し込む間隔。
 const _kNativeAdInterval = 10;
@@ -158,10 +160,37 @@ class _OnboardingQuizBanner extends ConsumerWidget {
   }
 }
 
-class _PostTile extends StatelessWidget {
+class _PostTile extends StatefulWidget {
   const _PostTile({required this.post});
 
   final Post post;
+
+  @override
+  State<_PostTile> createState() => _PostTileState();
+}
+
+class _PostTileState extends State<_PostTile> {
+  YoutubePlayerController? _youtubeController;
+
+  Post get post => widget.post;
+
+  @override
+  void initState() {
+    super.initState();
+    final videoId = post.externalVideoId;
+    if (post.externalVideoProvider == 'youtube' && videoId != null) {
+      _youtubeController = YoutubePlayerController(
+        initialVideoId: videoId,
+        flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _youtubeController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -184,6 +213,16 @@ class _PostTile extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               IntellectBadge(percentile: post.authorIntellectPercentile),
+              if (post.postType == 'staked') ...[
+                const SizedBox(width: 8),
+                Chip(
+                  avatar: const Icon(Icons.bolt, size: 14),
+                  label: Text('賭けTP: ${post.stakedTp}', style: const TextStyle(fontSize: 11)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: Theme.of(context).colorScheme.tertiaryContainer,
+                ),
+              ],
               const SizedBox(width: 8),
               Text(
                 _formatCreatedAt(post.createdAt),
@@ -207,6 +246,25 @@ class _PostTile extends StatelessWidget {
                 errorBuilder: (context, error, stackTrace) =>
                     const SizedBox(height: 80, child: Center(child: Text('画像を読み込めませんでした'))),
               ),
+            ),
+          ],
+          if (_youtubeController != null) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: YoutubePlayer(controller: _youtubeController!),
+            ),
+          ],
+          if (post.mediaType == 'video') ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: post.videoStatus == 'ready' && post.videoPlaybackId != null
+                  ? MuxVideoPlayerWidget(playbackId: post.videoPlaybackId!)
+                  : VideoProcessingPlaceholder(
+                      thumbnailUrl: post.videoThumbnailUrl,
+                      status: post.videoStatus ?? 'pending',
+                    ),
             ),
           ],
         ],

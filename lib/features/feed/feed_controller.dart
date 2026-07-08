@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/legacy.dart';
 
 import '../../core/supabase_client.dart';
 import 'post.dart';
+import 'youtube_utils.dart';
 
 /// design/product.md 4章の「レイヤーフィルター」（全ユーザー/上位25%/上位5%）。
 enum LayerFilter { all, top25, top5 }
@@ -22,8 +23,10 @@ final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
   final rows = await supabase
       .from('posts')
       .select(
-        'id, body, created_at, author_id, media_type, media_urls, '
-        'profiles(username, intellect_percentile)',
+        'id, body, created_at, author_id, media_type, media_urls, post_type, staked_tp, '
+        'external_video_url, external_video_provider, external_video_id, '
+        'profiles(username, intellect_percentile), '
+        'videos(status, mux_playback_id, thumbnail_url)',
       )
       .order('created_at', ascending: false)
       .limit(50);
@@ -66,10 +69,23 @@ class FeedController {
     await supabase.from('posts').insert({
       'author_id': authorId,
       'body': trimmed,
-      'media_type': 'text',
+      'media_type': containsYoutubeUrl(trimmed) ? 'youtube_embed' : 'text',
+      ..._youtubeFields(trimmed),
     });
 
     ref.invalidate(feedPostsProvider);
+  }
+
+  /// design/system.md 5.3節。本文からYouTube URLを検出し、`posts` に保存する
+  /// `external_video_*` 列の値を組み立てる。YouTube URLが含まれない場合は空Map。
+  Map<String, dynamic> _youtubeFields(String body) {
+    final videoId = extractYoutubeVideoId(body);
+    if (videoId == null) return {};
+    return {
+      'external_video_url': extractYoutubeUrl(body),
+      'external_video_provider': 'youtube',
+      'external_video_id': videoId,
+    };
   }
 
   /// design/system.md 5章の画像投稿。`post-images` バケットの `{userId}/{fileName}` に
@@ -98,6 +114,37 @@ class FeedController {
       'media_type': 'image',
       'media_urls': [imageUrl],
     });
+
+    ref.invalidate(feedPostsProvider);
+  }
+
+  /// design/system.md 5章「Mux動画アーキテクチャ」。動画アップロード開始時に
+  /// `posts` レコードを先に作成し、返却された `post_id` に紐づけて `videos` テーブルへ
+  /// アップロード状況を記録できるようにする（[VideoUploadController]から呼び出す）。
+  Future<String> createVideoPost({required String authorId, required String body}) async {
+    final row = await supabase
+        .from('posts')
+        .insert({
+          'author_id': authorId,
+          'body': body.trim(),
+          'media_type': 'video',
+        })
+        .select('id')
+        .single();
+
+    ref.invalidate(feedPostsProvider);
+    return row['id'] as String;
+  }
+
+  /// design/product.md 3.4節「ステーキング・ツイート: 投稿時にTPを賭ける」。
+  /// design/system.md 7章のロック解除クイズ通過が前提。TPの減算と投稿作成を
+  /// `create_staked_post` RPC（`supabase/migrations/*_add_staking_functions.sql`）内で
+  /// アトミックに行い、残高不足時はDB側の例外で投稿をブロックする。
+  Future<void> createStakedPost({required String body, required num stakedTp}) async {
+    await supabase.rpc(
+      'create_staked_post',
+      params: {'p_body': body.trim(), 'p_staked_tp': stakedTp},
+    );
 
     ref.invalidate(feedPostsProvider);
   }
