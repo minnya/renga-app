@@ -1,0 +1,8 @@
+# design/system.md 9章「Flutterアプリ構成」/ design/product.md 5章「多言語対応」
+# gen-l10n の設定。既定ロケールはen（app_en.arbがテンプレート）、jaを追加ロケールとして提供する。
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false
+output-dir: lib/l10n/gen

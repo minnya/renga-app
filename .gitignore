@@ -17,6 +17,9 @@ build/
 *.g.dart
 coverage/
 
+# gen-l10n の生成物（l10n.yaml参照）
+lib/l10n/gen/
+
 # Node.js（npx supabase / firebase-tools 用。package.json/package-lock.jsonはCLIバージョン
 # 固定のためコミット対象、node_modules/のみ除外）
 node_modules/

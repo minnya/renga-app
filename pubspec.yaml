@@ -78,6 +78,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # design/system.md 9章「Flutterアプリ構成」: gen-l10nでARBファイルから
+  # AppLocalizationsを自動生成する（設定は l10n.yaml を参照）。
+  generate: true
+
   # To add assets to your application, add an assets section, like this:
   assets:
     - .env

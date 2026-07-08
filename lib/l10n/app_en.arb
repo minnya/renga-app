@@ -1,0 +1,160 @@
+{
+  "@@locale": "en",
+  "appTitle": "Renga",
+  "@appTitle": {
+    "description": "Application title shown in OS task switcher etc."
+  },
+
+  "feedAppBarTitle": "Renga — Feed",
+  "feedDailyQuizTooltip": "Daily Quiz",
+  "feedFilterAll": "All Users",
+  "feedFilterTop25": "Top 25%",
+  "feedFilterTop5": "Top 5%",
+  "feedEmpty": "No posts yet",
+  "feedLoadError": "Failed to load posts: {error}",
+  "@feedLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "feedUnknownUser": "Unknown user",
+  "feedImageLoadError": "Failed to load image",
+  "feedOnboardingBannerTitle": "Try your first quiz",
+  "feedOnboardingBannerSubtitle": "Answer 3 questions to get a provisional Intellect rank",
+  "feedBadgeTop5": "Top 5%",
+  "feedBadgeTop25": "Top 25%",
+
+  "authEmailLabel": "Email",
+  "authPasswordLabel": "Password",
+  "authEmailRequired": "Please enter your email address",
+  "authEmailInvalid": "Please enter a valid email address",
+  "authPasswordRequired": "Please enter your password",
+  "loginAppBarTitle": "Log in",
+  "loginSubmitButton": "Log in",
+  "loginFailedMessage": "Login failed: {error}",
+  "@loginFailedMessage": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginGoToSignup": "Don't have an account? Sign up",
+
+  "signupAppBarTitle": "Sign up",
+  "signupConfirmPasswordLabel": "Password (confirm)",
+  "signupConfirmPasswordRequired": "Please confirm your password",
+  "signupPasswordMismatch": "Passwords do not match",
+  "signupUsernameLabel": "Username (optional)",
+  "signupUsernameHelper": "A username will be assigned automatically if left blank",
+  "signupSubmitButton": "Sign up",
+  "signupFailedMessage": "Sign up failed: {error}",
+  "@signupFailedMessage": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "signupGoToLogin": "Already have an account? Log in",
+
+  "quizOnboardingTitle": "Onboarding Quiz",
+  "quizDailyTitle": "Daily Quiz",
+  "quizLoadError": "Failed to load questions: {error}",
+  "@quizLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "quizNoQuestions": "No questions available right now",
+  "quizProgress": "Question {current} / {total}",
+  "@quizProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "quizRemainingSeconds": "{seconds} sec remaining",
+  "@quizRemainingSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "quizResult": "Result: {correct} / {total} correct",
+  "@quizResult": {
+    "placeholders": {
+      "correct": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "quizTpAwarded": "You earned 30 TP!",
+  "quizBackToFeed": "Back to Feed",
+
+  "profileAppBarTitle": "Profile",
+  "profileSignedOutMessage": "Please log in to view your profile",
+  "profileGoToLogin": "Go to login",
+  "profileSaveSuccess": "Saved",
+  "profileSaveError": "Failed to save: {error}",
+  "@profileSaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileLoadError": "Failed to load profile: {error}",
+  "@profileLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileUsernameFieldLabel": "username",
+  "profileDisplayNameLabel": "Display name",
+  "profileBioLabel": "Bio",
+  "profileSaveButton": "Save",
+  "profileScoresTitle": "Scores",
+  "profileScoreInfluence": "Influence",
+  "profileScoreIntellect": "Intellect",
+  "profilePercentileLabel": "Top {percentile}%",
+  "@profilePercentileLabel": {
+    "placeholders": {
+      "percentile": {
+        "type": "String"
+      }
+    }
+  },
+  "profileSignOutButton": "Log out",
+
+  "composeAppBarTitle": "New post",
+  "composeLoginPrompt": "Log in to post",
+  "composeBodyHint": "What's happening?",
+  "composePickImageButton": "Choose image",
+  "composeSubmitButton": "Post",
+  "composeLoginRequiredError": "Please log in before posting",
+  "composeEmptyError": "Enter some text or choose an image",
+  "composeSubmitError": "Failed to post: {error}"
+  ,
+  "@composeSubmitError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
+}

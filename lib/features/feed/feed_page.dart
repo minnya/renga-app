@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../../core/auth_state.dart';
+import '../../l10n/gen/app_localizations.dart';
 import '../quiz/quiz_controller.dart';
 import 'feed_controller.dart';
 import 'intellect_badge.dart';
@@ -26,10 +27,12 @@ class FeedPage extends ConsumerWidget {
     final postsAsync = ref.watch(filteredFeedPostsProvider);
     final currentUser = ref.watch(currentUserProvider);
     final layer = ref.watch(layerFilterProvider);
+    // design/system.md 9章「Flutterアプリ構成」: 文言はAppLocalizations経由で取得する（gen-l10n生成）。
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Renga — フィード'),
+        title: Text(l10n.feedAppBarTitle),
         actions: [
           IconButton(
             tooltip: 'Discover',
@@ -48,7 +51,7 @@ class FeedPage extends ConsumerWidget {
               icon: const Icon(Icons.sports_kabaddi_outlined),
             ),
             IconButton(
-              tooltip: 'デイリークイズ',
+              tooltip: l10n.feedDailyQuizTooltip,
               onPressed: () => context.go('/daily-quiz'),
               icon: const Icon(Icons.quiz_outlined),
             ),
@@ -61,10 +64,10 @@ class FeedPage extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: SegmentedButton<LayerFilter>(
-              segments: const [
-                ButtonSegment(value: LayerFilter.all, label: Text('全ユーザー')),
-                ButtonSegment(value: LayerFilter.top25, label: Text('上位25%')),
-                ButtonSegment(value: LayerFilter.top5, label: Text('上位5%')),
+              segments: [
+                ButtonSegment(value: LayerFilter.all, label: Text(l10n.feedFilterAll)),
+                ButtonSegment(value: LayerFilter.top25, label: Text(l10n.feedFilterTop25)),
+                ButtonSegment(value: LayerFilter.top5, label: Text(l10n.feedFilterTop5)),
               ],
               selected: {layer},
               onSelectionChanged: (selection) {
@@ -82,10 +85,10 @@ class FeedPage extends ConsumerWidget {
                 data: (posts) {
                   if (posts.isEmpty) {
                     return ListView(
-                      children: const [
+                      children: [
                         Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Center(child: Text('まだ投稿がありません')),
+                          padding: const EdgeInsets.all(32),
+                          child: Center(child: Text(l10n.feedEmpty)),
                         ),
                       ],
                     );
