@@ -86,10 +86,11 @@ create table public.posts (
   created_at timestamptz not null default now()
 );
 
--- 動画（Mux連携）。1投稿につき最大1本を想定
+-- 動画（Mux連携）。1投稿につき最大1本、またはコメント/返信につき最大1本を想定
 create table public.videos (
   id uuid primary key default gen_random_uuid(),
-  post_id uuid not null references public.posts(id) on delete cascade,
+  post_id uuid references public.posts(id) on delete cascade, -- コメント添付動画の場合はnull
+  comment_id uuid references public.comments(id) on delete cascade, -- 投稿添付動画の場合はnull（post_id/comment_idのどちらか一方必須）
   uploader_id uuid not null references public.profiles(id),
   mux_upload_id text, -- Mux Direct Upload ID（アップロード開始直後に採番）
   mux_asset_id text, -- Mux処理完了後に確定
@@ -128,10 +129,15 @@ create table public.comments (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references public.posts(id) on delete cascade,
   author_id uuid not null references public.profiles(id) on delete cascade,
+  parent_comment_id uuid references public.comments(id) on delete cascade, -- 返信スレッド用（1階層）。nullはトップレベルコメント
   body text not null,
+  media_urls text[], -- 返信・コメントへの画像添付（複数可、3.12節）
+  external_video_url text, -- コメントへの動画添付（Mux連携、videosテーブルのpost_idの代わりにcomment_idも参照可能にする想定）
   created_at timestamptz not null default now()
 );
 -- RLS: select全公開 + insert-own + delete-own（自分のコメント削除のみ）。
+-- 補足: 動画添付コメントはvideosテーブルのFK制約を`post_id`固定ではなくpolymorphicに近い形へ拡張するか、
+--       comment_id用の別カラム（例: videos.comment_id、post_idはnullable化）を追加して対応する。
 
 -- Endorse（お墨付き）
 create table public.endorsements (
@@ -592,12 +598,16 @@ lib/
 - **プッシュ通知/設定配信**: `firebase_core` / `firebase_messaging` / `firebase_remote_config` / `firebase_crashlytics` / `firebase_analytics`。`firebase_messaging` はフォアグラウンド/バックグラウンド/終了状態の3パターンの受信ハンドラを実装し、トークン取得・更新時にSupabaseの `device_tokens` へ同期する。
 - **広告**: `google_mobile_ads` を導入し、広告ユニットIDはRemote Config経由で配信。
 - **メディア**: 画像選択・撮影は `image_picker`、動画選択・撮影は `image_picker`（video）を使用。動画はMuxへのDirect Upload（`http`パッケージによるPUTリクエスト）でアップロードし、再生は `video_player`（+ `chewie`）でHLSストリームを再生。YouTube埋め込みは `webview_flutter` または `youtube_player_flutter` を使用。共有シート受信（Android）は `receive_sharing_intent` を使用し、YouTubeアプリ等から共有されたURLをCompose画面にプリフィルする（詳細は [5章](#5-mux動画アーキテクチャ)）。
+  - **スクロール連動の自動再生**: フィード内の動画は画面内可視割合を検知して自動再生/停止を切り替える（`visibility_detector`パッケージ等を利用。`ListView`の`itemBuilder`ごとに可視率を監視し、閾値超過時のみ`VideoPlayerController`を生成・再生してリソースを節約する）。フィード内はミュート・軽量プレビュー品質、全画面表示時のみフル品質HLSに切り替える（product.md 3.13節）。
+  - **全画面メディアビューア**: 画像（複数枚、`PageView`+ドットインジケーター）・動画（下部シークバー＋つまみ）を共通の`FullscreenMediaViewer`ウィジェットで表示する。フィード側のサムネイル/軽量プレビューと全画面側のフル品質表示は同じ`playback_id`/`media_urls`を参照し、表示解像度のみ出し分ける。
 - **多言語対応**: `flutter_localizations` + `gen-l10n`。既定ロケールは英語（`app_en.arb`）、日本語（`app_ja.arb`）を追加ロケールとして提供。端末ロケールが未対応言語の場合は英語にフォールバック。
 - **デザインシステム分離**: `packages/renga_ui` をローカルパッケージ化し、Widgetbookでカタログ管理。
 - **アニメーション**: `rive` または `lottie` をバッジ実績解除・バトル結果発表に使用。
 - **通報/モデレーション**: すべての投稿・動画・プロフィールに通報導線（`RengaReportSheet` 等の共通コンポーネント）を用意し、`reports` テーブルへ書き込む（詳細は [13章](#13-コンテンツモデレーショントrust--safety)）。
 - **共有**: OS標準の共有シートを開くために `share_plus` を使用する（投稿の共有ボタン。3.12節）。`receive_sharing_intent`（既存導入済み、5.3節）は他アプリからの共有受信専用であり、送信側の共有には使わない。
-- **設定・編集系UIの方針**: Settings画面・Profile編集など「値の編集」を伴うUIは、画面に直接埋め込まず`showModalBottomSheet`によるボトムシートに分離する（`lib/features/feed/intellect_badge.dart`の説明ボトムシートと同じ角丸・パディングの意匠を踏襲）。go_router側にモーダル専用のルート種別は設けず、各画面のWidgetから直接呼び出す軽量な構成とする。
+- **設定・編集系UIの方針**: Profile画面の「編集」ボタンのように、既存の読み取り専用ビュー上で完結する軽い編集は引き続き`showModalBottomSheet`のボトムシートに分離する（`lib/features/feed/intellect_badge.dart`の説明ボトムシートと同じ角丸・パディングの意匠を踏襲）。一方、**Settings画面配下の各設定変更**（プロフィール編集・パスワード変更・アカウント削除・表示設定・表示言語）は、Settings画面自体をリンク一覧に留め、それぞれ`go_router`の子ルート（例: `/settings/profile`, `/settings/password`, `/settings/delete-account`, `/settings/display`, `/settings/language`）としてフルページ遷移させる方針に統一する（product.md 3.11節）。**ボトムシート共通ルール**: どちらの形式でも「キャンセル」専用ボタンは置かず、シートを閉じる操作自体をキャンセルとして扱う（product.md 5章）。
+- **アカウント削除**: クライアントから`auth.users`を直接削除できないため、Supabase Edge Function `delete_account`（サービスロールキーを保持）を新設し、認証済みユーザー自身のリクエストのみ受け付けて`auth.users`を削除する（`profiles`は`on delete cascade`で連動削除）。呼び出し前にクライアント側で確認ステップ（再ログインまたはユーザー名再入力）を必須とする。
+- **他ユーザーのプロフィール閲覧**: `go_router`に`/profile/:userId`ルートを追加し、フィード・コメント等のアバター/ユーザー名タップから遷移する。既存の`/profile`（自分のプロフィール、ボトムナビタブ）とはルート・Widgetを分け、`ProfilePage`は`userId`を受け取れるよう拡張し、閲覧者が本人かどうかで編集ボタン・ログアウトボタン等の表示を出し分ける（product.md 3.10節）。
 
 ---
 
