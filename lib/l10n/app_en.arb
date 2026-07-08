@@ -25,6 +25,18 @@
   "feedOnboardingBannerSubtitle": "Answer 3 questions to get a provisional Intellect rank",
   "feedBadgeTop5": "Top 5%",
   "feedBadgeTop25": "Top 25%",
+  "feedStakedTpLabel": "Staked TP: {amount}",
+  "@feedStakedTpLabel": {
+    "placeholders": {
+      "amount": {
+        "type": "int"
+      }
+    }
+  },
+  "feedActionLike": "Like",
+  "feedActionComment": "Comment",
+  "feedActionRepost": "Repost",
+  "feedActionShare": "Share",
 
   "authEmailLabel": "Email",
   "authPasswordLabel": "Password",
@@ -159,6 +171,10 @@
     }
   },
   "profileSignOutButton": "Log out",
+  "profileTpBalanceLabel": "TP Balance",
+  "profileStrikeCountLabel": "Strikes",
+  "profileEditProfileButton": "Edit Profile",
+  "profileEditComplete": "Edit complete",
 
   "composeAppBarTitle": "New post",
   "composeLoginPrompt": "Log in to post",
@@ -331,5 +347,7 @@
   "battleSideChallenger": "Challenger side",
   "battleBetAmountLabel": "Bet TP amount",
   "battleBetSubmitting": "Submitting...",
-  "battleBetSubmitButton": "Place bet"
+  "battleBetSubmitButton": "Place bet",
+  "battleRoleDefender": "Defender",
+  "battleRoleChallenger": "Challenger"
 }

@@ -15,6 +15,11 @@
   "feedOnboardingBannerSubtitle": "3問に答えると暫定Intellectランクが決まります",
   "feedBadgeTop5": "上位5%",
   "feedBadgeTop25": "上位25%",
+  "feedStakedTpLabel": "賭けTP: {amount}",
+  "feedActionLike": "いいね",
+  "feedActionComment": "コメント",
+  "feedActionRepost": "リポスト",
+  "feedActionShare": "共有",
 
   "authEmailLabel": "メールアドレス",
   "authPasswordLabel": "パスワード",
@@ -66,6 +71,10 @@
   "profileScoreIntellect": "Intellect",
   "profilePercentileLabel": "上位 {percentile}%",
   "profileSignOutButton": "ログアウト",
+  "profileTpBalanceLabel": "TP残高",
+  "profileStrikeCountLabel": "ストライク",
+  "profileEditProfileButton": "プロフィール編集",
+  "profileEditComplete": "編集完了",
 
   "composeAppBarTitle": "投稿を作成",
   "composeLoginPrompt": "ログインすると投稿できます",
@@ -136,5 +145,7 @@
   "battleSideChallenger": "挑戦側",
   "battleBetAmountLabel": "ベットTP額",
   "battleBetSubmitting": "送信中...",
-  "battleBetSubmitButton": "ベットする"
+  "battleBetSubmitButton": "ベットする",
+  "battleRoleDefender": "防衛側",
+  "battleRoleChallenger": "挑戦側"
 }
