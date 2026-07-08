@@ -23,7 +23,18 @@ class ProfilePage extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.profileAppBarTitle)),
+      appBar: AppBar(
+        title: Text(l10n.profileAppBarTitle),
+        // design/product.md 3.11節「Settings画面」。Profile画面の歯車アイコンから遷移する。
+        actions: [
+          if (currentUser != null)
+            IconButton(
+              tooltip: 'Settings',
+              onPressed: () => context.push('/settings'),
+              icon: const Icon(Icons.settings_outlined),
+            ),
+        ],
+      ),
       body: currentUser == null
           ? _SignedOutView()
           : _SignedInProfileView(userId: currentUser.id),
