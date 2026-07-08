@@ -76,14 +76,16 @@ ThemeData _buildTheme({required ColorScheme colorScheme, required Color scaffold
         fontWeight: FontWeight.w700,
       ),
     ),
-    // ボトムナビゲーションはInstagram/X同様、アイコンのみ・ラベル非表示・フラット。
+    // design/product.md 4章: 選択中のタブのみラベルを表示し、非選択タブはアイコンのみにする
+    // (Instagram/X同様)。
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: scaffoldBackground,
       selectedItemColor: colorScheme.onSurface,
       unselectedItemColor: colorScheme.onSurfaceVariant,
       type: BottomNavigationBarType.fixed,
-      showSelectedLabels: false,
+      showSelectedLabels: true,
       showUnselectedLabels: false,
+      selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
       elevation: 0,
     ),
     dividerTheme: DividerThemeData(color: dividerColor, thickness: 0.5, space: 0.5),

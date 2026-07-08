@@ -17,9 +17,33 @@ import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/quiz/quiz_controller.dart';
 import '../features/quiz/quiz_page.dart';
+import '../features/settings/settings_page.dart';
 import 'main_shell.dart';
 
 const _publicPaths = {'/login', '/signup', '/debug'};
+
+/// design/product.md 4章「ページ遷移のアニメーション」。Instagram/X標準相当の
+/// フェード＋わずかな下からのスライドで画面遷移する共通トランジション。
+/// タブ切り替え（[StatefulShellRoute]のブランチ）には適用しない
+/// （ボトムナビのタブ切り替えは即時表示がInstagram/Xの標準挙動のため）。
+CustomTransitionPage<void> _fadeSlidePage(BuildContext context, GoRouterState state, Widget child) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 220),
+    reverseTransitionDuration: const Duration(milliseconds: 180),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, 0.03), end: Offset.zero).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 /// design/product.md 4章「情報アーキテクチャ / 画面構成」:
 /// [Splash] → [Onboarding: 3問クイズ] → [Home Tab Bar] の必須フローに対応するため、
@@ -99,8 +123,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: ':battleId',
-                    builder: (context, state) =>
-                        BattleDetailPage(battleId: state.pathParameters['battleId']!),
+                    pageBuilder: (context, state) => _fadeSlidePage(
+                      context,
+                      state,
+                      BattleDetailPage(battleId: state.pathParameters['battleId']!),
+                    ),
                   ),
                 ],
               ),
@@ -111,22 +138,33 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-      GoRoute(path: '/signup', builder: (context, state) => const SignupPage()),
+      GoRoute(path: '/login', pageBuilder: (context, state) => _fadeSlidePage(context, state, const LoginPage())),
+      GoRoute(
+        path: '/signup',
+        pageBuilder: (context, state) => _fadeSlidePage(context, state, const SignupPage()),
+      ),
       GoRoute(
         path: '/compose',
         // design/product.md 3.1節「YouTubeアプリの共有シートに登場」。
         // 共有シート経由の起動時、main.dartが共有テキストを`extra`に載せて`/compose`へ遷移させる。
-        builder: (context, state) => ComposePage(initialBody: state.extra as String?),
+        pageBuilder: (context, state) =>
+            _fadeSlidePage(context, state, ComposePage(initialBody: state.extra as String?)),
       ),
-      GoRoute(path: '/notifications', builder: (context, state) => const NotificationsPage()),
+      GoRoute(
+        path: '/notifications',
+        pageBuilder: (context, state) => _fadeSlidePage(context, state, const NotificationsPage()),
+      ),
+      GoRoute(
+        path: '/settings',
+        pageBuilder: (context, state) => _fadeSlidePage(context, state, const SettingsPage()),
+      ),
       GoRoute(
         path: '/onboarding-quiz',
-        builder: (context, state) => const QuizPage(kind: QuizKind.onboarding),
+        pageBuilder: (context, state) => _fadeSlidePage(context, state, const QuizPage(kind: QuizKind.onboarding)),
       ),
       GoRoute(
         path: '/daily-quiz',
-        builder: (context, state) => const QuizPage(kind: QuizKind.daily),
+        pageBuilder: (context, state) => _fadeSlidePage(context, state, const QuizPage(kind: QuizKind.daily)),
       ),
       GoRoute(path: '/debug', builder: (context, state) => const ConnectionCheckPage()),
     ],
