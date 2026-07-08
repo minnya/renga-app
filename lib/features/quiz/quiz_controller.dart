@@ -6,10 +6,16 @@ import '../../core/auth_state.dart';
 import '../../core/supabase_client.dart';
 import 'quiz_question.dart';
 
-enum QuizKind { onboarding, daily }
+/// design/product.md 3.2節「ロック解除クイズ（通行料）」に対応する`lockQuiz`を追加。
+/// ステーキング投稿の直前に義務化される1〜2問のクイズ種別。
+enum QuizKind { onboarding, daily, lockQuiz }
 
 extension QuizKindX on QuizKind {
-  String get value => this == QuizKind.onboarding ? 'onboarding' : 'daily';
+  String get value => switch (this) {
+        QuizKind.onboarding => 'onboarding',
+        QuizKind.daily => 'daily',
+        QuizKind.lockQuiz => 'lock_quiz',
+      };
 }
 
 /// design/product.md 3章「オンボーディングクイズ: 初回登録時に3問」。
@@ -36,6 +42,19 @@ final dailyQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) async {
   final questions = rows.map((row) => QuizQuestion.fromMap(row)).toList();
   questions.shuffle(Random());
   return questions.take(3).toList();
+});
+
+/// design/product.md 3.2節「ロック解除クイズ（通行料）: シリアス投稿(ステーキング)時に1〜2問を義務化」。
+/// プール(4問)からランダムに2問抽出する。TP付与は行わず、通行料としての正誤判定のみに使う。
+final lockQuizQuestionsProvider = FutureProvider.autoDispose<List<QuizQuestion>>((ref) async {
+  final rows = await supabase
+      .from('quiz_questions')
+      .select()
+      .eq('kind', 'lock_quiz')
+      .eq('is_active', true);
+  final questions = rows.map((row) => QuizQuestion.fromMap(row)).toList();
+  questions.shuffle(Random());
+  return questions.take(2).toList();
 });
 
 /// 現在のユーザーがオンボーディングクイズに1問でも回答済みかどうか。

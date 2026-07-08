@@ -4,14 +4,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../../core/auth_state.dart';
+import '../quiz/lock_quiz_page.dart';
 import 'feed_controller.dart';
+import 'video_upload_controller.dart';
+import 'youtube_utils.dart';
 
-/// design/system.md のテキスト投稿・画像投稿作成画面。
+/// design/product.md 3.4節「ステーキングとロジックチェック」の投稿種別。
+/// フィードのレイヤーフィルターと同様、feed_page.dartのSegmentedButtonパターンを踏襲する。
+enum _ComposeMode { normal, staked }
+
+/// design/system.md のテキスト投稿・画像投稿・動画投稿作成画面。
 ///
 /// ログイン中のユーザーのみ投稿できる。未ログイン時は投稿ボタンを無効化し、
 /// ログインを促す案内を表示する。
+/// design/product.md 3.4節に従い、通常投稿とステーキング投稿を切り替えられる。
+/// ステーキング投稿はロック解除クイズ（design/product.md 3.2節）に全問正解しないと送信できない。
 class ComposePage extends ConsumerStatefulWidget {
   const ComposePage({super.key});
 
@@ -21,15 +31,46 @@ class ComposePage extends ConsumerStatefulWidget {
 
 class _ComposePageState extends ConsumerState<ComposePage> {
   final _controller = TextEditingController();
+  final _stakedTpController = TextEditingController(text: '10');
   bool _isSubmitting = false;
   String? _errorMessage;
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
+  XFile? _selectedVideo;
+  double? _videoUploadProgress;
+  YoutubePlayerController? _youtubeController;
+  String? _previewedYoutubeVideoId;
+  _ComposeMode _mode = _ComposeMode.normal;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onBodyChanged);
+  }
 
   @override
   void dispose() {
+    _controller.removeListener(_onBodyChanged);
     _controller.dispose();
+    _stakedTpController.dispose();
+    _youtubeController?.dispose();
     super.dispose();
+  }
+
+  /// design/system.md 5.3節。本文にYouTube URLが含まれる場合、自動でプレビューカードを出す。
+  void _onBodyChanged() {
+    final videoId = extractYoutubeVideoId(_controller.text);
+    if (videoId == _previewedYoutubeVideoId) return;
+    setState(() {
+      _previewedYoutubeVideoId = videoId;
+      _youtubeController?.dispose();
+      _youtubeController = videoId == null
+          ? null
+          : YoutubePlayerController(
+              initialVideoId: videoId,
+              flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
+            );
+    });
   }
 
   Future<void> _pickImage() async {
@@ -39,6 +80,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     setState(() {
       _selectedImage = picked;
       _selectedImageBytes = bytes;
+      _selectedVideo = null;
     });
   }
 
@@ -49,21 +91,46 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     });
   }
 
+  Future<void> _pickVideo() async {
+    final picked = await VideoUploadController().pickVideo();
+    if (picked == null) return;
+    setState(() {
+      _selectedVideo = picked;
+      _selectedImage = null;
+      _selectedImageBytes = null;
+    });
+  }
+
+  void _clearVideo() {
+    setState(() {
+      _selectedVideo = null;
+      _videoUploadProgress = null;
+    });
+  }
+
   Future<void> _submit() async {
     final currentUser = ref.read(currentUserProvider);
     if (currentUser == null) {
       setState(() => _errorMessage = 'ログインしてから投稿してください');
       return;
     }
+
+    if (_mode == _ComposeMode.staked) {
+      await _submitStaked();
+      return;
+    }
+
     final hasImage = _selectedImage != null && _selectedImageBytes != null;
-    if (_controller.text.trim().isEmpty && !hasImage) {
-      setState(() => _errorMessage = '投稿内容を入力するか、画像を選択してください');
+    final hasVideo = _selectedVideo != null;
+    if (_controller.text.trim().isEmpty && !hasImage && !hasVideo) {
+      setState(() => _errorMessage = '投稿内容を入力するか、画像・動画を選択してください');
       return;
     }
 
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
+      if (hasVideo) _videoUploadProgress = 0;
     });
 
     try {
@@ -82,6 +149,21 @@ class _ComposePageState extends ConsumerState<ComposePage> {
           body: _controller.text,
           imageUrl: imageUrl,
         );
+      } else if (hasVideo) {
+        // design/system.md 5.1節「動画アップロードフロー」。先に posts レコードを作成し、
+        // その post_id に紐づけて videos レコード作成＋Mux Direct Uploadを行う。
+        final postId = await controller.createVideoPost(
+          authorId: currentUser.id,
+          body: _controller.text,
+        );
+        await VideoUploadController().uploadVideo(
+          video: _selectedVideo!,
+          postId: postId,
+          uploaderId: currentUser.id,
+          onProgress: (progress) {
+            if (mounted) setState(() => _videoUploadProgress = progress);
+          },
+        );
       } else {
         await controller.createTextPost(authorId: currentUser.id, body: _controller.text);
       }
@@ -94,6 +176,51 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _errorMessage = '投稿に失敗しました: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  /// design/product.md 3.4節「ステーキング・ツイート」。
+  /// design/product.md 3.2節「ロック解除クイズ（通行料）」を投稿前に必須で挟み、
+  /// 全問正解した場合のみ `create_staked_post` RPC（design/system.md 7章参照）で
+  /// TP減算と投稿作成をアトミックに行う。
+  Future<void> _submitStaked() async {
+    if (_controller.text.trim().isEmpty) {
+      setState(() => _errorMessage = '投稿内容を入力してください');
+      return;
+    }
+    final stakedTp = num.tryParse(_stakedTpController.text.trim());
+    if (stakedTp == null || stakedTp <= 0) {
+      setState(() => _errorMessage = '賭けるTPは1以上の数値で入力してください');
+      return;
+    }
+
+    setState(() => _errorMessage = null);
+
+    // ロック解除クイズに全問正解しないとステーキング投稿はブロックされる。
+    final passed = await showLockQuizDialog(context);
+    if (!mounted) return;
+    if (!passed) {
+      setState(() => _errorMessage = 'ロック解除クイズに正解できなかったため、投稿はブロックされました');
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final controller = ref.read(feedControllerProvider);
+      await controller.createStakedPost(body: _controller.text, stakedTp: stakedTp);
+
+      if (!mounted) return;
+      await ref.read(feedPostsProvider.future);
+      if (!mounted) return;
+      context.go('/');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'ステーキング投稿に失敗しました: $e');
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -121,6 +248,19 @@ class _ComposePageState extends ConsumerState<ComposePage> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
+            // design/product.md 3.4節「通常投稿 / ステーキング投稿」の切替UI。
+            // feed_page.dartのレイヤーフィルターと同じSegmentedButtonパターンに倣う。
+            SegmentedButton<_ComposeMode>(
+              segments: const [
+                ButtonSegment(value: _ComposeMode.normal, label: Text('通常投稿')),
+                ButtonSegment(value: _ComposeMode.staked, label: Text('ステーキング投稿')),
+              ],
+              selected: {_mode},
+              onSelectionChanged: (isLoggedIn && !_isSubmitting)
+                  ? (selection) => setState(() => _mode = selection.first)
+                  : null,
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _controller,
               minLines: 4,
@@ -131,33 +271,103 @@ class _ComposePageState extends ConsumerState<ComposePage> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
-            if (_selectedImageBytes != null)
-              Stack(
-                alignment: Alignment.topRight,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(
-                      _selectedImageBytes!,
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _isSubmitting ? null : _clearImage,
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    style: IconButton.styleFrom(backgroundColor: Colors.black45),
-                  ),
-                ],
-              )
-            else
-              OutlinedButton.icon(
-                onPressed: isLoggedIn && !_isSubmitting ? _pickImage : null,
-                icon: const Icon(Icons.image_outlined),
-                label: const Text('画像を選択'),
+            if (_mode == _ComposeMode.staked) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _stakedTpController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                enabled: isLoggedIn && !_isSubmitting,
+                decoration: const InputDecoration(
+                  labelText: '賭けるTP量',
+                  helperText: '投稿前にロック解除クイズ（1〜2問）に全問正解する必要があります',
+                  border: OutlineInputBorder(),
+                ),
               ),
+            ],
+            const SizedBox(height: 12),
+            if (_mode == _ComposeMode.normal) ...[
+              if (_selectedImageBytes != null)
+                Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(
+                        _selectedImageBytes!,
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _isSubmitting ? null : _clearImage,
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      style: IconButton.styleFrom(backgroundColor: Colors.black45),
+                    ),
+                  ],
+                )
+              else if (_selectedVideo != null)
+                Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    Container(
+                      height: 100,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_selectedVideo!.name),
+                            if (_videoUploadProgress != null) ...[
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: 160,
+                                child: LinearProgressIndicator(value: _videoUploadProgress),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _isSubmitting ? null : _clearVideo,
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: isLoggedIn && !_isSubmitting ? _pickImage : null,
+                        icon: const Icon(Icons.image_outlined),
+                        label: const Text('画像を選択'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: isLoggedIn && !_isSubmitting ? _pickVideo : null,
+                        icon: const Icon(Icons.videocam_outlined),
+                        label: const Text('動画を選択'),
+                      ),
+                    ),
+                  ],
+                ),
+              // design/system.md 5.3節。本文にYouTube URLが含まれる場合の自動プレビュー。
+              if (_youtubeController != null) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: YoutubePlayer(controller: _youtubeController!),
+                ),
+              ],
+            ],
             if (_errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
