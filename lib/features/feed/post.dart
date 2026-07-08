@@ -13,6 +13,9 @@ class Post {
     required this.authorIntellectPercentile,
     required this.postType,
     required this.stakedTp,
+    required this.likeCount,
+    required this.commentCount,
+    required this.repostCount,
     this.externalVideoUrl,
     this.externalVideoProvider,
     this.externalVideoId,
@@ -35,6 +38,15 @@ class Post {
   /// design/system.md 1章 `posts.staked_tp`。design/product.md 3.4節「ステーキング・ツイート」で
   /// 賭けたTP量。`postType == 'staked'` の場合のみ意味を持つ。
   final num stakedTp;
+
+  /// design/product.md 3.12節「基本エンゲージメント機能」。いいね件数。
+  final int likeCount;
+
+  /// design/product.md 3.12節。コメント件数。
+  final int commentCount;
+
+  /// design/product.md 3.12節。リポスト件数。
+  final int repostCount;
 
   /// design/system.md 5.3節。YouTube等の外部動画URL（原文のまま保持）。
   final String? externalVideoUrl;
@@ -97,6 +109,9 @@ class Post {
       authorIntellectPercentile: intellectPercentile,
       postType: map['post_type'] as String? ?? 'normal',
       stakedTp: map['staked_tp'] as num? ?? 0,
+      likeCount: _parseAggregateCount(map['likes']),
+      commentCount: _parseAggregateCount(map['comments']),
+      repostCount: _parseAggregateCount(map['reposts']),
       externalVideoUrl: map['external_video_url'] as String?,
       externalVideoProvider: map['external_video_provider'] as String?,
       externalVideoId: map['external_video_id'] as String?,
@@ -104,5 +119,17 @@ class Post {
       videoPlaybackId: video?['mux_playback_id'] as String?,
       videoThumbnailUrl: video?['thumbnail_url'] as String?,
     );
+  }
+
+  /// Supabase PostgRESTの集計embed（例: `likes(count)`）は
+  /// `[{"count": N}]` という形の配列で返るため、防御的にパースする。
+  static int _parseAggregateCount(dynamic value) {
+    if (value is List && value.isNotEmpty) {
+      final first = value.first;
+      if (first is Map && first['count'] != null) {
+        return (first['count'] as num).toInt();
+      }
+    }
+    return 0;
   }
 }

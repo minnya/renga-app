@@ -42,6 +42,35 @@
   "feedActionRepost": "Repost",
   "feedActionShare": "Share",
 
+  "feedCommentsSheetTitle": "Comments",
+  "feedCommentInputHint": "Add a comment...",
+  "feedCommentSendButton": "Post",
+  "feedCommentEmpty": "No comments yet",
+  "feedCommentPostError": "Failed to post comment: {error}",
+  "@feedCommentPostError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "feedLikeError": "Failed to update like: {error}",
+  "@feedLikeError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "feedRepostError": "Failed to update repost: {error}",
+  "@feedRepostError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+
   "authEmailLabel": "Email",
   "authPasswordLabel": "Password",
   "authEmailRequired": "Please enter your email address",

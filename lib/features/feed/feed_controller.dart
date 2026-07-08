@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/auth_state.dart';
 import '../../core/firebase_client.dart';
 import '../../core/supabase_client.dart';
+import 'comment.dart';
 import 'post.dart';
 import 'youtube_utils.dart';
 
@@ -138,7 +139,8 @@ final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
         'id, body, created_at, author_id, media_type, media_urls, post_type, staked_tp, '
         'external_video_url, external_video_provider, external_video_id, '
         'profiles(username, intellect_percentile), '
-        'videos(status, mux_playback_id, thumbnail_url)',
+        'videos(status, mux_playback_id, thumbnail_url), '
+        'likes(count), comments(count), reposts(count)',
       )
       .order('created_at', ascending: false)
       .limit(50);
@@ -162,6 +164,32 @@ final filteredFeedPostsProvider = Provider<AsyncValue<List<Post>>>((ref) {
       LayerFilter.top5 => posts.where((p) => (p.authorIntellectPercentile ?? 100) <= 5).toList(),
     };
   });
+});
+
+/// design/product.md 3.12節。ログインユーザーが「いいね」済みの投稿ID集合。
+final myLikedPostIdsProvider = FutureProvider<Set<String>>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return {};
+  final rows = await supabase.from('likes').select('post_id').eq('user_id', user.id);
+  return rows.map((row) => row['post_id'] as String).toSet();
+});
+
+/// design/product.md 3.12節。ログインユーザーがリポスト済みの投稿ID集合。
+final myRepostedPostIdsProvider = FutureProvider<Set<String>>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return {};
+  final rows = await supabase.from('reposts').select('post_id').eq('user_id', user.id);
+  return rows.map((row) => row['post_id'] as String).toSet();
+});
+
+/// design/product.md 3.12節。投稿へのコメント一覧（作成日時昇順）。
+final commentsProvider = FutureProvider.family<List<Comment>, String>((ref, postId) async {
+  final rows = await supabase
+      .from('comments')
+      .select('id, post_id, author_id, body, created_at, profiles(username)')
+      .eq('post_id', postId)
+      .order('created_at');
+  return rows.map((row) => Comment.fromMap(row)).toList();
 });
 
 /// 投稿・画像アップロードを行うコントローラ。
@@ -262,6 +290,57 @@ class FeedController {
 
     ref.invalidate(feedPostsProvider);
     await _logPostCreated('staked');
+  }
+
+  /// design/product.md 3.12節「いいね」。トグル式（再タップで取り消し）。
+  Future<void> toggleLike({required String postId, required bool currentlyLiked}) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    if (currentlyLiked) {
+      await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', user.id);
+    } else {
+      await supabase.from('likes').insert({'post_id': postId, 'user_id': user.id});
+    }
+
+    ref.invalidate(feedPostsProvider);
+    ref.invalidate(myLikedPostIdsProvider);
+  }
+
+  /// design/product.md 3.12節「リポスト」。トグル式（再タップで取り消し）。
+  Future<void> toggleRepost({required String postId, required bool currentlyReposted}) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    if (currentlyReposted) {
+      await supabase.from('reposts').delete().eq('post_id', postId).eq('user_id', user.id);
+    } else {
+      await supabase.from('reposts').insert({
+        'post_id': postId,
+        'user_id': user.id,
+        'acknowledged_warning': true,
+      });
+    }
+
+    ref.invalidate(feedPostsProvider);
+    ref.invalidate(myRepostedPostIdsProvider);
+  }
+
+  /// design/product.md 3.12節「コメント」。
+  Future<void> addComment({required String postId, required String body}) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) return;
+
+    await supabase.from('comments').insert({
+      'post_id': postId,
+      'author_id': user.id,
+      'body': trimmed,
+    });
+
+    ref.invalidate(commentsProvider(postId));
+    ref.invalidate(feedPostsProvider);
   }
 
   /// design/system.md 4章「Analytics」の主要アクション計測。投稿種別を`post_type`
