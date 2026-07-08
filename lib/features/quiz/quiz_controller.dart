@@ -89,6 +89,19 @@ final hasCompletedDailyTodayProvider = FutureProvider<bool>((ref) async {
   return rows.isNotEmpty;
 });
 
+/// award_daily_completion_tp RPCの戻り値。連続日数・今回付与TP・更新後残高をUIへ伝える。
+class DailyCompletionResult {
+  const DailyCompletionResult({
+    required this.streakCount,
+    required this.awardedTp,
+    required this.newBalance,
+  });
+
+  final int streakCount;
+  final double awardedTp;
+  final double newBalance;
+}
+
 class QuizController {
   QuizController(this.ref);
 
@@ -108,10 +121,19 @@ class QuizController {
     });
   }
 
-  /// design/product.md 3章「デイリーミッション: クリアでTPを付与」。
-  /// 3問クリアで固定30 TPを付与する（連続日数ボーナスは対象外）。
-  Future<void> awardDailyCompletionTp() async {
-    await supabase.rpc('increment_tp_balance', params: {'p_amount': 30});
+  /// design/product.md 3.2節「デイリーミッション: クリアでTPとボーナスポイントを付与。
+  /// 連続日数ボーナスあり」。
+  /// 3問クリアで基礎30 TPに加え、連続達成日数に応じたボーナスTPを付与する
+  /// （award_daily_completion_tp RPC側で3日ごと/7日ごとのボーナスと連続日数更新をアトミックに行う）。
+  /// 戻り値は更新後の連続日数・今回の付与TP・TP残高で、UI側のフィードバック表示に使える。
+  Future<DailyCompletionResult> awardDailyCompletionTp() async {
+    final response = await supabase.rpc('award_daily_completion_tp', params: {'p_base_amount': 30});
+    final row = (response as List).first as Map<String, dynamic>;
+    return DailyCompletionResult(
+      streakCount: (row['new_streak_count'] as num).toInt(),
+      awardedTp: (row['awarded_tp'] as num).toDouble(),
+      newBalance: (row['new_balance'] as num).toDouble(),
+    );
   }
 
   void invalidateCompletionStatus() {

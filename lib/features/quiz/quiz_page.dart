@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth_state.dart';
+import '../../l10n/gen/app_localizations.dart';
 import 'quiz_controller.dart';
 import 'quiz_question.dart';
 
@@ -28,6 +29,7 @@ class _QuizPageState extends ConsumerState<QuizPage> {
   bool _answeredCurrent = false;
   bool _finished = false;
   bool _tpAwarded = false;
+  DailyCompletionResult? _dailyResult;
 
   @override
   void dispose() {
@@ -95,7 +97,7 @@ class _QuizPageState extends ConsumerState<QuizPage> {
 
   Future<void> _handleFinish() async {
     if (widget.kind == QuizKind.daily && !_tpAwarded) {
-      await ref.read(quizControllerProvider).awardDailyCompletionTp();
+      _dailyResult = await ref.read(quizControllerProvider).awardDailyCompletionTp();
       _tpAwarded = true;
     }
     ref.read(quizControllerProvider).invalidateCompletionStatus();
@@ -105,28 +107,30 @@ class _QuizPageState extends ConsumerState<QuizPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final questionsAsync = widget.kind == QuizKind.onboarding
         ? ref.watch(onboardingQuestionsProvider)
         : ref.watch(dailyQuestionsProvider);
 
-    final title = widget.kind == QuizKind.onboarding ? 'オンボーディングクイズ' : 'デイリークイズ';
+    final title = widget.kind == QuizKind.onboarding ? l10n.quizOnboardingTitle : l10n.quizDailyTitle;
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: questionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('問題の取得に失敗しました: $error')),
+        error: (error, stackTrace) => Center(child: Text(l10n.quizLoadError('$error'))),
         data: (questions) {
           _initializeIfNeeded(questions);
 
           if (_questions!.isEmpty) {
-            return const Center(child: Text('現在出題可能な問題がありません'));
+            return Center(child: Text(l10n.quizNoQuestions));
           }
           if (_finished) {
             return _QuizResultView(
               correctCount: _correctCount,
               total: _questions!.length,
               tpAwarded: widget.kind == QuizKind.daily,
+              dailyResult: _dailyResult,
             );
           }
 
@@ -137,11 +141,11 @@ class _QuizPageState extends ConsumerState<QuizPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  '問題 ${_currentIndex + 1} / ${_questions!.length}',
+                  l10n.quizProgress(_currentIndex + 1, _questions!.length),
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 8),
-                Text('残り $_remainingSeconds 秒', style: Theme.of(context).textTheme.bodyMedium),
+                Text(l10n.quizRemainingSeconds(_remainingSeconds), style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 24),
                 Text(question.questionText, style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 24),
@@ -164,29 +168,42 @@ class _QuizPageState extends ConsumerState<QuizPage> {
 }
 
 class _QuizResultView extends StatelessWidget {
-  const _QuizResultView({required this.correctCount, required this.total, required this.tpAwarded});
+  const _QuizResultView({
+    required this.correctCount,
+    required this.total,
+    required this.tpAwarded,
+    this.dailyResult,
+  });
 
   final int correctCount;
   final int total;
   final bool tpAwarded;
+  final DailyCompletionResult? dailyResult;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final result = dailyResult;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('結果: $correctCount / $total 問正解', style: Theme.of(context).textTheme.headlineSmall),
-            if (tpAwarded) ...[
+            Text(l10n.quizResult(correctCount, total), style: Theme.of(context).textTheme.headlineSmall),
+            if (tpAwarded && result != null) ...[
               const SizedBox(height: 12),
-              const Text('TPを30獲得しました！'),
+              Text(l10n.quizTpAwardedAmount(result.awardedTp.toStringAsFixed(0))),
+              const SizedBox(height: 4),
+              Text(l10n.quizStreakCount(result.streakCount)),
+            ] else if (tpAwarded) ...[
+              const SizedBox(height: 12),
+              Text(l10n.quizTpAwardedGeneric),
             ],
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => context.go('/'),
-              child: const Text('フィードへ戻る'),
+              child: Text(l10n.quizBackToFeed),
             ),
           ],
         ),

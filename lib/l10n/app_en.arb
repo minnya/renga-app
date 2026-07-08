@@ -102,6 +102,23 @@
     }
   },
   "quizTpAwarded": "You earned 30 TP!",
+  "quizTpAwardedGeneric": "You earned TP!",
+  "quizTpAwardedAmount": "You earned {amount} TP!",
+  "@quizTpAwardedAmount": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "quizStreakCount": "Day {days} streak",
+  "@quizStreakCount": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "quizBackToFeed": "Back to Feed",
 
   "profileAppBarTitle": "Profile",

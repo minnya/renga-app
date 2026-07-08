@@ -44,6 +44,9 @@
   "quizRemainingSeconds": "残り {seconds} 秒",
   "quizResult": "結果: {correct} / {total} 問正解",
   "quizTpAwarded": "TPを30獲得しました！",
+  "quizTpAwardedGeneric": "TPを獲得しました！",
+  "quizTpAwardedAmount": "TPを{amount}獲得しました！",
+  "quizStreakCount": "連続達成 {days} 日目",
   "quizBackToFeed": "フィードへ戻る",
 
   "profileAppBarTitle": "プロフィール",
