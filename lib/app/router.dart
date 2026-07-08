@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/auth_state.dart';
+import '../core/firebase_client.dart';
 import '../features/auth/login_page.dart';
 import '../features/auth/signup_page.dart';
 import '../features/debug/connection_check_page.dart';
@@ -26,6 +27,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     refreshListenable: _AuthRefreshListenable(ref),
+    // design/system.md 4章「Analytics」: 画面遷移の自動計測。
+    observers: [ref.watch(firebaseAnalyticsObserverProvider)],
     redirect: (context, state) {
       // 初回のセッション確認が完了するまではリダイレクトを保留する。
       if (authStateAsync.isLoading) return null;

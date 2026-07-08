@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../../core/firebase_client.dart';
 import '../../core/supabase_client.dart';
 import 'post.dart';
 import 'youtube_utils.dart';
@@ -74,6 +75,7 @@ class FeedController {
     });
 
     ref.invalidate(feedPostsProvider);
+    await _logPostCreated('text');
   }
 
   /// design/system.md 5.3節。本文からYouTube URLを検出し、`posts` に保存する
@@ -116,6 +118,7 @@ class FeedController {
     });
 
     ref.invalidate(feedPostsProvider);
+    await _logPostCreated('image');
   }
 
   /// design/system.md 5章「Mux動画アーキテクチャ」。動画アップロード開始時に
@@ -147,6 +150,16 @@ class FeedController {
     );
 
     ref.invalidate(feedPostsProvider);
+    await _logPostCreated('staked');
+  }
+
+  /// design/system.md 4章「Analytics」の主要アクション計測。投稿種別を`post_type`
+  /// パラメータとして送信する。
+  Future<void> _logPostCreated(String postType) {
+    return ref.read(firebaseAnalyticsProvider).logEvent(
+      name: 'post_created',
+      parameters: {'post_type': postType},
+    );
   }
 }
 
