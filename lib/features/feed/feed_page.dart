@@ -71,7 +71,7 @@ class FeedPage extends ConsumerWidget {
               ],
               selected: {layer},
               onSelectionChanged: (selection) {
-                ref.read(layerFilterProvider.notifier).state = selection.first;
+                ref.read(layerFilterProvider.notifier).select(selection.first);
               },
             ),
           ),
