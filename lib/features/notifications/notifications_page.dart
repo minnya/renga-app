@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth_state.dart';
+import '../../l10n/gen/app_localizations.dart';
 import 'notification.dart';
 import 'notifications_controller.dart';
 
@@ -12,11 +13,12 @@ class NotificationsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentUser = ref.watch(currentUserProvider);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('通知')),
+      appBar: AppBar(title: Text(l10n.notificationsAppBarTitle)),
       body: currentUser == null
-          ? const Center(child: Text('通知を表示するにはログインしてください'))
+          ? Center(child: Text(l10n.notificationsSignedOutMessage))
           : _NotificationsList(userId: currentUser.id),
     );
   }
@@ -29,6 +31,7 @@ class _NotificationsList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final notificationsAsync = ref.watch(notificationsProvider(userId));
 
     return RefreshIndicator(
@@ -40,10 +43,10 @@ class _NotificationsList extends ConsumerWidget {
         data: (notifications) {
           if (notifications.isEmpty) {
             return ListView(
-              children: const [
+              children: [
                 Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Center(child: Text('まだ通知がありません')),
+                  padding: const EdgeInsets.all(32),
+                  child: Center(child: Text(l10n.notificationsEmpty)),
                 ),
               ],
             );
@@ -71,7 +74,7 @@ class _NotificationsList extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.all(32),
-              child: Center(child: Text('通知の取得に失敗しました: $error')),
+              child: Center(child: Text(l10n.notificationsLoadError('$error'))),
             ),
           ],
         ),

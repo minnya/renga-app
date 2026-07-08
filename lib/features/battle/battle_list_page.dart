@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../l10n/gen/app_localizations.dart';
 import 'battle.dart';
 import 'battle_controller.dart';
 
@@ -14,17 +15,18 @@ class BattleListPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final battlesAsync = ref.watch(battleListProvider);
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Battle — ロジックチェック'),
-          bottom: const TabBar(
+          title: Text(l10n.battleListAppBarTitle),
+          bottom: TabBar(
             tabs: [
-              Tab(text: '進行中'),
-              Tab(text: '終了'),
+              Tab(text: l10n.battleTabActive),
+              Tab(text: l10n.battleTabResolved),
             ],
           ),
         ),
@@ -39,8 +41,8 @@ class BattleListPage extends ConsumerWidget {
               final resolved = battles.where((b) => !b.isActive).toList();
               return TabBarView(
                 children: [
-                  _BattleListView(battles: active, emptyMessage: '進行中のバトルはありません'),
-                  _BattleListView(battles: resolved, emptyMessage: '終了したバトルはまだありません'),
+                  _BattleListView(battles: active, emptyMessage: l10n.battleListEmptyActive),
+                  _BattleListView(battles: resolved, emptyMessage: l10n.battleListEmptyResolved),
                 ],
               );
             },
@@ -49,7 +51,7 @@ class BattleListPage extends ConsumerWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(32),
-                  child: Center(child: Text('バトルの取得に失敗しました: $error')),
+                  child: Center(child: Text(l10n.battleListLoadError('$error'))),
                 ),
               ],
             ),
@@ -95,6 +97,7 @@ class _BattleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Card(
       child: InkWell(
         onTap: () => context.go('/battles/${battle.id}'),
@@ -107,13 +110,13 @@ class _BattleCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      '${battle.targetPostAuthorUsername ?? '不明なユーザー'} vs '
-                      '${battle.challengerPostAuthorUsername ?? '挑戦者'}',
+                      '${battle.targetPostAuthorUsername ?? l10n.feedUnknownUser} vs '
+                      '${battle.challengerPostAuthorUsername ?? l10n.battleChallengerFallback}',
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
                   Chip(
-                    label: Text(battle.isActive ? '進行中' : '終了'),
+                    label: Text(battle.isActive ? l10n.battleTabActive : l10n.battleTabResolved),
                     visualDensity: VisualDensity.compact,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -131,11 +134,11 @@ class _BattleCard extends StatelessWidget {
                 children: [
                   Icon(Icons.paid_outlined, size: 16, color: Theme.of(context).colorScheme.secondary),
                   const SizedBox(width: 4),
-                  Text('賭けTP合計: ${battle.totalStakeTp.toStringAsFixed(0)}'),
+                  Text(l10n.battleStakeTotalLabel(battle.totalStakeTp.toStringAsFixed(0))),
                   const Spacer(),
                   Icon(Icons.timer_outlined, size: 16, color: Theme.of(context).colorScheme.secondary),
                   const SizedBox(width: 4),
-                  Text(_remainingLabel(battle)),
+                  Text(_remainingLabel(l10n, battle)),
                 ],
               ),
             ],
@@ -145,12 +148,12 @@ class _BattleCard extends StatelessWidget {
     );
   }
 
-  String _remainingLabel(Battle battle) {
-    if (!battle.isActive) return '決着済み';
+  String _remainingLabel(AppLocalizations l10n, Battle battle) {
+    if (!battle.isActive) return l10n.battleRemainingResolved;
     final remaining = battle.remaining;
-    if (remaining == Duration.zero) return 'まもなく決着';
+    if (remaining == Duration.zero) return l10n.battleRemainingSoon;
     final hours = remaining.inHours;
-    if (hours >= 1) return '残り$hours時間';
-    return '残り${remaining.inMinutes}分';
+    if (hours >= 1) return l10n.battleRemainingHours(hours);
+    return l10n.battleRemainingMinutes(remaining.inMinutes);
   }
 }

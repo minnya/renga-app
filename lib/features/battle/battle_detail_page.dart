@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth_state.dart';
+import '../../l10n/gen/app_localizations.dart';
 import 'battle.dart';
 import 'battle_controller.dart';
 
@@ -17,16 +18,17 @@ class BattleDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final battleAsync = ref.watch(battleDetailProvider(battleId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('バトル詳細')),
+      appBar: AppBar(title: Text(l10n.battleDetailAppBarTitle)),
       body: battleAsync.when(
         data: (battle) => _BattleDetailBody(battle: battle),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) => Padding(
           padding: const EdgeInsets.all(32),
-          child: Center(child: Text('バトルの取得に失敗しました: $error')),
+          child: Center(child: Text(l10n.battleListLoadError('$error'))),
         ),
       ),
     );
@@ -40,6 +42,7 @@ class _BattleDetailBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final currentUser = ref.watch(currentUserProvider);
 
     return ListView(
@@ -47,21 +50,23 @@ class _BattleDetailBody extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Chip(label: Text(battle.isActive ? '進行中' : '終了')),
+            Chip(label: Text(battle.isActive ? l10n.battleTabActive : l10n.battleTabResolved)),
             const SizedBox(width: 8),
-            Text('決着予定: ${_formatDateTime(battle.resolvesAt)}'),
+            Text(l10n.battleResolvesAtLabel(_formatDateTime(battle.resolvesAt))),
           ],
         ),
         if (!battle.isActive && battle.winner != null) ...[
           const SizedBox(height: 8),
           Text(
-            '勝者: ${battle.winner == 'challenger' ? '挑戦者' : '対象投稿者'}',
+            l10n.battleWinnerLabel(
+              battle.winner == 'challenger' ? l10n.battleChallengerFallback : l10n.battleWinnerDefender,
+            ),
             style: Theme.of(context).textTheme.titleMedium,
           ),
         ],
         const SizedBox(height: 16),
         _PostCompareCard(
-          label: '対象投稿（防衛側）',
+          label: l10n.battleTargetPostLabel,
           username: battle.targetPostAuthorUsername,
           body: battle.targetPostBody,
           stakeTp: battle.defenderStakeTp,
@@ -70,7 +75,7 @@ class _BattleDetailBody extends ConsumerWidget {
         const Center(child: Icon(Icons.compare_arrows, size: 28)),
         const SizedBox(height: 8),
         _PostCompareCard(
-          label: '挑戦投稿（挑戦側）',
+          label: l10n.battleChallengerPostLabel,
           username: battle.challengerPostAuthorUsername,
           body: battle.challengerPostBody,
           stakeTp: battle.challengerStakeTp,
@@ -79,7 +84,7 @@ class _BattleDetailBody extends ConsumerWidget {
         if (battle.isActive && currentUser != null)
           _BetForm(battleId: battle.id)
         else if (battle.isActive)
-          const Center(child: Text('ベットにはログインが必要です')),
+          Center(child: Text(l10n.battleLoginRequiredForBet)),
       ],
     );
   }
@@ -109,6 +114,7 @@ class _PostCompareCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -117,11 +123,11 @@ class _PostCompareCard extends StatelessWidget {
           children: [
             Text(label, style: Theme.of(context).textTheme.labelMedium),
             const SizedBox(height: 4),
-            Text(username ?? '不明なユーザー', style: Theme.of(context).textTheme.titleSmall),
+            Text(username ?? l10n.feedUnknownUser, style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            Text(body ?? '（投稿が見つかりません）'),
+            Text(body ?? l10n.battlePostNotFound),
             const SizedBox(height: 8),
-            Text('ステークTP: ${stakeTp.toStringAsFixed(0)}'),
+            Text(l10n.battleStakeTpLabel(stakeTp.toStringAsFixed(0))),
           ],
         ),
       ),
@@ -151,13 +157,14 @@ class _BetFormState extends ConsumerState<_BetForm> {
   }
 
   Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
     final currentUser = ref.read(currentUserProvider);
     if (currentUser == null) return;
 
     final amount = num.tryParse(_amountController.text);
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('正しいTP額を入力してください')),
+        SnackBar(content: Text(l10n.battleBetInvalidAmount)),
       );
       return;
     }
@@ -172,12 +179,12 @@ class _BetFormState extends ConsumerState<_BetForm> {
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ベットしました')),
+        SnackBar(content: Text(l10n.battleBetSuccess)),
       );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ベットに失敗しました: $error')),
+        SnackBar(content: Text(l10n.battleBetError('$error'))),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -186,18 +193,19 @@ class _BetFormState extends ConsumerState<_BetForm> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('観客ベット', style: Theme.of(context).textTheme.titleSmall),
+            Text(l10n.battleAudienceBetTitle, style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'defender', label: Text('対象投稿側')),
-                ButtonSegment(value: 'challenger', label: Text('挑戦側')),
+              segments: [
+                ButtonSegment(value: 'defender', label: Text(l10n.battleSideDefender)),
+                ButtonSegment(value: 'challenger', label: Text(l10n.battleSideChallenger)),
               ],
               selected: {_side},
               onSelectionChanged: (selection) => setState(() => _side = selection.first),
@@ -206,14 +214,14 @@ class _BetFormState extends ConsumerState<_BetForm> {
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'ベットTP額'),
+              decoration: InputDecoration(labelText: l10n.battleBetAmountLabel),
             ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
                 onPressed: _submitting ? null : _submit,
-                child: Text(_submitting ? '送信中...' : 'ベットする'),
+                child: Text(_submitting ? l10n.battleBetSubmitting : l10n.battleBetSubmitButton),
               ),
             ),
           ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../l10n/gen/app_localizations.dart';
 import 'auth_controller.dart';
 
 /// メールアドレス/パスワードでの新規登録画面。
@@ -29,29 +30,31 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   }
 
   String? _validateEmail(String? value) {
+    final l10n = AppLocalizations.of(context);
     if (value == null || value.trim().isEmpty) {
-      return 'メールアドレスを入力してください';
+      return l10n.authEmailRequired;
     }
     final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     if (!emailPattern.hasMatch(value.trim())) {
-      return '正しいメールアドレスの形式で入力してください';
+      return l10n.authEmailInvalid;
     }
     return null;
   }
 
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) {
-      return 'パスワードを入力してください';
+      return AppLocalizations.of(context).authPasswordRequired;
     }
     return null;
   }
 
   String? _validateConfirmPassword(String? value) {
+    final l10n = AppLocalizations.of(context);
     if (value == null || value.isEmpty) {
-      return '確認用パスワードを入力してください';
+      return l10n.signupConfirmPasswordRequired;
     }
     if (value != _passwordController.text) {
-      return 'パスワードが一致しません';
+      return l10n.signupPasswordMismatch;
     }
     return null;
   }
@@ -77,10 +80,11 @@ class _SignupPageState extends ConsumerState<SignupPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     ref.listen<AsyncValue<void>>(authControllerProvider, (previous, next) {
       if (next.hasError && !next.isLoading) {
         final error = next.error;
-        final message = error is AuthFailure ? error.message : 'サインアップに失敗しました: $error';
+        final message = error is AuthFailure ? error.message : l10n.signupFailedMessage('$error');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     });
@@ -88,7 +92,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     final isLoading = ref.watch(authControllerProvider).isLoading;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('サインアップ')),
+      appBar: AppBar(title: Text(l10n.signupAppBarTitle)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
@@ -104,7 +108,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(labelText: 'メールアドレス'),
+                    decoration: InputDecoration(labelText: l10n.authEmailLabel),
                     validator: _validateEmail,
                   ),
                   const SizedBox(height: 16),
@@ -112,22 +116,22 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     controller: _passwordController,
                     obscureText: true,
                     autofillHints: const [AutofillHints.newPassword],
-                    decoration: const InputDecoration(labelText: 'パスワード'),
+                    decoration: InputDecoration(labelText: l10n.authPasswordLabel),
                     validator: _validatePassword,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _confirmPasswordController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'パスワード（確認）'),
+                    decoration: InputDecoration(labelText: l10n.signupConfirmPasswordLabel),
                     validator: _validateConfirmPassword,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'ユーザー名（任意）',
-                      helperText: '未入力の場合は自動で割り当てられます',
+                    decoration: InputDecoration(
+                      labelText: l10n.signupUsernameLabel,
+                      helperText: l10n.signupUsernameHelper,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -139,12 +143,12 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('サインアップ'),
+                        : Text(l10n.signupSubmitButton),
                   ),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: isLoading ? null : () => context.go('/login'),
-                    child: const Text('ログインはこちら'),
+                    child: Text(l10n.signupGoToLogin),
                   ),
                 ],
               ),

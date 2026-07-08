@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth_state.dart';
 import '../../core/supabase_client.dart';
+import '../../l10n/gen/app_localizations.dart';
 import '../feed/intellect_badge.dart';
 import 'profile_controller.dart';
 
@@ -18,9 +19,10 @@ class ProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentUser = ref.watch(currentUserProvider);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('プロフィール')),
+      appBar: AppBar(title: Text(l10n.profileAppBarTitle)),
       body: currentUser == null
           ? _SignedOutView()
           : _SignedInProfileView(userId: currentUser.id),
@@ -33,17 +35,18 @@ class _SignedOutView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('プロフィールを表示するにはログインしてください'),
+            Text(l10n.profileSignedOutMessage),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => context.go('/login'),
-              child: const Text('ログイン画面へ'),
+              child: Text(l10n.profileGoToLogin),
             ),
           ],
         ),
@@ -82,6 +85,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
   }
 
   Future<void> _handleSave() async {
+    final l10n = AppLocalizations.of(context);
     setState(() => _saving = true);
     try {
       await ref.read(profileControllerProvider).updateProfile(
@@ -91,12 +95,12 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('保存しました')),
+        SnackBar(content: Text(l10n.profileSaveSuccess)),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存に失敗しました: $e')),
+        SnackBar(content: Text(l10n.profileSaveError('$e'))),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -111,12 +115,13 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final profileAsync = ref.watch(profileProvider(widget.userId));
 
     return profileAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => Center(
-        child: Text('プロフィールの取得に失敗しました: $error'),
+        child: Text(l10n.profileLoadError('$error')),
       ),
       data: (profile) {
         _initializeControllersIfNeeded(profile);
@@ -130,23 +135,23 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('username', style: Theme.of(context).textTheme.labelMedium),
+            Text(l10n.profileUsernameFieldLabel, style: Theme.of(context).textTheme.labelMedium),
             const SizedBox(height: 4),
             Text(username, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 24),
             TextField(
               controller: _displayNameController,
-              decoration: const InputDecoration(
-                labelText: '表示名 (display name)',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.profileDisplayNameLabel,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _bioController,
-              decoration: const InputDecoration(
-                labelText: '自己紹介 (bio)',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.profileBioLabel,
+                border: const OutlineInputBorder(),
               ),
               minLines: 3,
               maxLines: 6,
@@ -160,16 +165,16 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('保存'),
+                  : Text(l10n.profileSaveButton),
             ),
             const SizedBox(height: 32),
-            Text('評価', style: Theme.of(context).textTheme.titleMedium),
+            Text(l10n.profileScoresTitle, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
                   child: _ScoreCard(
-                    label: 'Influence',
+                    label: l10n.profileScoreInfluence,
                     score: influenceScore,
                     percentile: influencePercentile,
                   ),
@@ -177,7 +182,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _ScoreCard(
-                    label: 'Intellect',
+                    label: l10n.profileScoreIntellect,
                     score: intellectScore,
                     percentile: intellectPercentile,
                     badge: IntellectBadge(percentile: intellectPercentile),
@@ -188,7 +193,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
             const SizedBox(height: 32),
             OutlinedButton(
               onPressed: _handleSignOut,
-              child: const Text('ログアウト'),
+              child: Text(l10n.profileSignOutButton),
             ),
           ],
         );
@@ -230,7 +235,10 @@ class _ScoreCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text('$score', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 4),
-            Text('上位 $percentile%', style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              AppLocalizations.of(context).profilePercentileLabel('$percentile'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
         ),
       ),

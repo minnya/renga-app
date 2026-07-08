@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth_state.dart';
+import '../../l10n/gen/app_localizations.dart';
 import 'quiz_controller.dart';
 import 'quiz_question.dart';
 
@@ -106,29 +107,30 @@ class _LockQuizPageState extends ConsumerState<LockQuizPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final questionsAsync = ref.watch(lockQuizQuestionsProvider);
 
     return PopScope(
       canPop: false,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('ロック解除クイズ（通行料）'),
+          title: Text(l10n.lockQuizAppBarTitle),
           automaticallyImplyLeading: false,
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('キャンセル'),
+              child: Text(l10n.lockQuizCancelButton),
             ),
           ],
         ),
         body: questionsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) => Center(child: Text('問題の取得に失敗しました: $error')),
+          error: (error, stackTrace) => Center(child: Text(l10n.quizLoadError('$error'))),
           data: (questions) {
             _initializeIfNeeded(questions);
 
             if (_questions!.isEmpty) {
-              return const Center(child: Text('現在出題可能な問題がありません'));
+              return Center(child: Text(l10n.quizNoQuestions));
             }
             if (_finished) {
               final passed = _correctCount == _questions!.length;
@@ -147,11 +149,11 @@ class _LockQuizPageState extends ConsumerState<LockQuizPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    '通行料クイズ ${_currentIndex + 1} / ${_questions!.length}',
+                    l10n.lockQuizProgress(_currentIndex + 1, _questions!.length),
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                   const SizedBox(height: 8),
-                  Text('残り $_remainingSeconds 秒', style: Theme.of(context).textTheme.bodyMedium),
+                  Text(l10n.quizRemainingSeconds(_remainingSeconds), style: Theme.of(context).textTheme.bodyMedium),
                   const SizedBox(height: 24),
                   Text(question.questionText, style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 24),
@@ -189,6 +191,7 @@ class _LockQuizResultView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -201,14 +204,17 @@ class _LockQuizResultView extends StatelessWidget {
               color: passed ? Colors.green : Theme.of(context).colorScheme.error,
             ),
             const SizedBox(height: 12),
-            Text('結果: $correctCount / $total 問正解', style: Theme.of(context).textTheme.headlineSmall),
+            Text(l10n.quizResult(correctCount, total), style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
-              passed ? 'ロックが解除されました。ステーキング投稿を続行できます。' : '全問正解できなかったため、ステーキング投稿はブロックされました。',
+              passed ? l10n.lockQuizPassedMessage : l10n.lockQuizFailedMessage,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            ElevatedButton(onPressed: onContinue, child: Text(passed ? '投稿へ進む' : '閉じる')),
+            ElevatedButton(
+              onPressed: onContinue,
+              child: Text(passed ? l10n.lockQuizContinueButton : l10n.lockQuizCloseButton),
+            ),
           ],
         ),
       ),

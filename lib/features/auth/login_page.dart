@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../l10n/gen/app_localizations.dart';
 import 'auth_controller.dart';
 import 'google_signin_button.dart';
 
@@ -64,19 +65,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   String? _validateEmail(String? value) {
+    final l10n = AppLocalizations.of(context);
     if (value == null || value.trim().isEmpty) {
-      return 'メールアドレスを入力してください';
+      return l10n.authEmailRequired;
     }
     final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     if (!emailPattern.hasMatch(value.trim())) {
-      return '正しいメールアドレスの形式で入力してください';
+      return l10n.authEmailInvalid;
     }
     return null;
   }
 
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) {
-      return 'パスワードを入力してください';
+      return AppLocalizations.of(context).authPasswordRequired;
     }
     return null;
   }
@@ -109,10 +111,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     ref.listen<AsyncValue<void>>(authControllerProvider, (previous, next) {
       if (next.hasError && !next.isLoading) {
         final error = next.error;
-        final message = error is AuthFailure ? error.message : 'ログインに失敗しました: $error';
+        final message = error is AuthFailure ? error.message : l10n.loginFailedMessage('$error');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     });
@@ -120,7 +123,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final isLoading = ref.watch(authControllerProvider).isLoading;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ログイン')),
+      appBar: AppBar(title: Text(l10n.loginAppBarTitle)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
@@ -136,7 +139,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(labelText: 'メールアドレス'),
+                    decoration: InputDecoration(labelText: l10n.authEmailLabel),
                     validator: _validateEmail,
                   ),
                   const SizedBox(height: 16),
@@ -144,7 +147,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     controller: _passwordController,
                     obscureText: true,
                     autofillHints: const [AutofillHints.password],
-                    decoration: const InputDecoration(labelText: 'パスワード'),
+                    decoration: InputDecoration(labelText: l10n.authPasswordLabel),
                     validator: _validatePassword,
                   ),
                   const SizedBox(height: 24),
@@ -156,17 +159,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('ログイン'),
+                        : Text(l10n.loginSubmitButton),
                   ),
                   const SizedBox(height: 16),
                   Row(
-                    children: const [
-                      Expanded(child: Divider()),
+                    children: [
+                      const Expanded(child: Divider()),
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: Text('または'),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(l10n.loginOrDivider),
                       ),
-                      Expanded(child: Divider()),
+                      const Expanded(child: Divider()),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -184,12 +187,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     OutlinedButton.icon(
                       onPressed: isLoading ? null : _submitWithGoogle,
                       icon: const Icon(Icons.g_mobiledata),
-                      label: const Text('Googleでログイン'),
+                      label: Text(l10n.loginGoogleButton),
                     ),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: isLoading ? null : () => context.go('/signup'),
-                    child: const Text('アカウントをお持ちでない方はこちら'),
+                    child: Text(l10n.loginGoToSignup),
                   ),
                 ],
               ),

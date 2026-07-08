@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../../core/auth_state.dart';
+import '../../l10n/gen/app_localizations.dart';
 import '../quiz/lock_quiz_page.dart';
 import 'feed_controller.dart';
 import 'video_upload_controller.dart';
@@ -23,7 +24,12 @@ enum _ComposeMode { normal, staked }
 /// design/product.md 3.4節に従い、通常投稿とステーキング投稿を切り替えられる。
 /// ステーキング投稿はロック解除クイズ（design/product.md 3.2節）に全問正解しないと送信できない。
 class ComposePage extends ConsumerStatefulWidget {
-  const ComposePage({super.key});
+  /// design/product.md 3.1節「YouTubeアプリの共有シートに登場」。
+  /// YouTubeアプリの共有シート等からRengaが起動された場合、共有された
+  /// テキスト（動画タイトル+URL）を本文へ自動プリフィルするための初期値。
+  const ComposePage({super.key, this.initialBody});
+
+  final String? initialBody;
 
   @override
   ConsumerState<ComposePage> createState() => _ComposePageState();
@@ -45,7 +51,12 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialBody != null && widget.initialBody!.isNotEmpty) {
+      _controller.text = widget.initialBody!;
+    }
     _controller.addListener(_onBodyChanged);
+    // 初期値がある場合（共有シート起点の起動）もプレビューを反映させる。
+    _onBodyChanged();
   }
 
   @override
@@ -109,9 +120,10 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   }
 
   Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
     final currentUser = ref.read(currentUserProvider);
     if (currentUser == null) {
-      setState(() => _errorMessage = 'ログインしてから投稿してください');
+      setState(() => _errorMessage = l10n.composeLoginRequiredError);
       return;
     }
 
@@ -123,7 +135,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     final hasImage = _selectedImage != null && _selectedImageBytes != null;
     final hasVideo = _selectedVideo != null;
     if (_controller.text.trim().isEmpty && !hasImage && !hasVideo) {
-      setState(() => _errorMessage = '投稿内容を入力するか、画像・動画を選択してください');
+      setState(() => _errorMessage = l10n.composeEmptyError);
       return;
     }
 
@@ -175,7 +187,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       context.go('/');
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = '投稿に失敗しました: $e');
+      setState(() => _errorMessage = AppLocalizations.of(context).composeSubmitError('$e'));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -188,13 +200,14 @@ class _ComposePageState extends ConsumerState<ComposePage> {
   /// 全問正解した場合のみ `create_staked_post` RPC（design/system.md 7章参照）で
   /// TP減算と投稿作成をアトミックに行う。
   Future<void> _submitStaked() async {
+    final l10n = AppLocalizations.of(context);
     if (_controller.text.trim().isEmpty) {
-      setState(() => _errorMessage = '投稿内容を入力してください');
+      setState(() => _errorMessage = l10n.composeStakedEmptyError);
       return;
     }
     final stakedTp = num.tryParse(_stakedTpController.text.trim());
     if (stakedTp == null || stakedTp <= 0) {
-      setState(() => _errorMessage = '賭けるTPは1以上の数値で入力してください');
+      setState(() => _errorMessage = l10n.composeStakedInvalidTpError);
       return;
     }
 
@@ -204,7 +217,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
     final passed = await showLockQuizDialog(context);
     if (!mounted) return;
     if (!passed) {
-      setState(() => _errorMessage = 'ロック解除クイズに正解できなかったため、投稿はブロックされました');
+      setState(() => _errorMessage = l10n.composeStakedLockFailedError);
       return;
     }
 
@@ -220,7 +233,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
       context.go('/');
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = 'ステーキング投稿に失敗しました: $e');
+      setState(() => _errorMessage = AppLocalizations.of(context).composeStakedSubmitError('$e'));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -230,11 +243,12 @@ class _ComposePageState extends ConsumerState<ComposePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final currentUser = ref.watch(currentUserProvider);
     final isLoggedIn = currentUser != null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('投稿を作成')),
+      appBar: AppBar(title: Text(l10n.composeAppBarTitle)),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -244,16 +258,16 @@ class _ComposePageState extends ConsumerState<ComposePage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
-                  'ログインすると投稿できます',
+                  l10n.composeLoginPrompt,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
             // design/product.md 3.4節「通常投稿 / ステーキング投稿」の切替UI。
             // feed_page.dartのレイヤーフィルターと同じSegmentedButtonパターンに倣う。
             SegmentedButton<_ComposeMode>(
-              segments: const [
-                ButtonSegment(value: _ComposeMode.normal, label: Text('通常投稿')),
-                ButtonSegment(value: _ComposeMode.staked, label: Text('ステーキング投稿')),
+              segments: [
+                ButtonSegment(value: _ComposeMode.normal, label: Text(l10n.composeNormalModeLabel)),
+                ButtonSegment(value: _ComposeMode.staked, label: Text(l10n.composeStakedModeLabel)),
               ],
               selected: {_mode},
               onSelectionChanged: (isLoggedIn && !_isSubmitting)
@@ -266,9 +280,9 @@ class _ComposePageState extends ConsumerState<ComposePage> {
               minLines: 4,
               maxLines: 10,
               enabled: isLoggedIn && !_isSubmitting,
-              decoration: const InputDecoration(
-                hintText: 'いまどうしてる？',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                hintText: l10n.composeBodyHint,
+                border: const OutlineInputBorder(),
               ),
             ),
             if (_mode == _ComposeMode.staked) ...[
@@ -277,10 +291,10 @@ class _ComposePageState extends ConsumerState<ComposePage> {
                 controller: _stakedTpController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: false),
                 enabled: isLoggedIn && !_isSubmitting,
-                decoration: const InputDecoration(
-                  labelText: '賭けるTP量',
-                  helperText: '投稿前にロック解除クイズ（1〜2問）に全問正解する必要があります',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: l10n.composeStakedTpLabel,
+                  helperText: l10n.composeStakedTpHelper,
+                  border: const OutlineInputBorder(),
                 ),
               ),
             ],
@@ -346,7 +360,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
                       child: OutlinedButton.icon(
                         onPressed: isLoggedIn && !_isSubmitting ? _pickImage : null,
                         icon: const Icon(Icons.image_outlined),
-                        label: const Text('画像を選択'),
+                        label: Text(l10n.composePickImageButton),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -354,7 +368,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
                       child: OutlinedButton.icon(
                         onPressed: isLoggedIn && !_isSubmitting ? _pickVideo : null,
                         icon: const Icon(Icons.videocam_outlined),
-                        label: const Text('動画を選択'),
+                        label: Text(l10n.composePickVideoButton),
                       ),
                     ),
                   ],
@@ -385,7 +399,7 @@ class _ComposePageState extends ConsumerState<ComposePage> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('投稿'),
+                  : Text(l10n.composeSubmitButton),
             ),
           ],
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/gen/app_localizations.dart';
 import 'discover_controller.dart';
 import 'domain_score.dart';
 
@@ -12,20 +13,21 @@ class DiscoverPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final selectedDomain = ref.watch(selectedDomainProvider);
     final rankingAsync = ref.watch(domainRankingProvider(selectedDomain));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Discover')),
+      appBar: AppBar(title: Text(l10n.discoverAppBarTitle)),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: DropdownButtonFormField<String>(
               initialValue: selectedDomain,
-              decoration: const InputDecoration(
-                labelText: 'ドメイン',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.discoverDomainLabel,
+                border: const OutlineInputBorder(),
               ),
               items: domainOptions.entries
                   .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
@@ -47,10 +49,10 @@ class DiscoverPage extends ConsumerWidget {
                 data: (ranking) {
                   if (ranking.isEmpty) {
                     return ListView(
-                      children: const [
+                      children: [
                         Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Center(child: Text('まだデータがありません')),
+                          padding: const EdgeInsets.all(32),
+                          child: Center(child: Text(l10n.discoverEmpty)),
                         ),
                       ],
                     );
@@ -67,7 +69,7 @@ class DiscoverPage extends ConsumerWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.all(32),
-                      child: Center(child: Text('ランキングの取得に失敗しました: $error')),
+                      child: Center(child: Text(l10n.discoverLoadError('$error'))),
                     ),
                   ],
                 ),
@@ -81,10 +83,10 @@ class DiscoverPage extends ConsumerWidget {
 }
 
 /// design/product.md 3.5節「専門家バッジ」（expert/master）のラベル。
-String? _badgeLabel(String? badgeTier) {
+String? _badgeLabel(AppLocalizations l10n, String? badgeTier) {
   return switch (badgeTier) {
-    'expert' => 'エキスパート',
-    'master' => 'マスター',
+    'expert' => l10n.discoverBadgeExpert,
+    'master' => l10n.discoverBadgeMaster,
     _ => null,
   };
 }
@@ -97,12 +99,13 @@ class _RankingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badgeLabel = _badgeLabel(domainScore.badgeTier);
+    final l10n = AppLocalizations.of(context);
+    final badgeLabel = _badgeLabel(l10n, domainScore.badgeTier);
 
     return ListTile(
       leading: CircleAvatar(child: Text('$rank')),
-      title: Text(domainScore.username ?? '不明なユーザー'),
-      subtitle: Text('スコア: ${domainScore.score}'),
+      title: Text(domainScore.username ?? l10n.feedUnknownUser),
+      subtitle: Text(l10n.discoverScoreLabel('${domainScore.score}')),
       trailing: badgeLabel != null
           ? Chip(
               label: Text(badgeLabel, style: const TextStyle(fontSize: 11)),

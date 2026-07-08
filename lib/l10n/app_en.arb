@@ -42,6 +42,8 @@
     }
   },
   "loginGoToSignup": "Don't have an account? Sign up",
+  "loginOrDivider": "or",
+  "loginGoogleButton": "Sign in with Google",
 
   "signupAppBarTitle": "Sign up",
   "signupConfirmPasswordLabel": "Password (confirm)",
@@ -164,7 +166,7 @@
   "composePickImageButton": "Choose image",
   "composeSubmitButton": "Post",
   "composeLoginRequiredError": "Please log in before posting",
-  "composeEmptyError": "Enter some text or choose an image",
+  "composeEmptyError": "Enter some text, or choose an image or video",
   "composeSubmitError": "Failed to post: {error}"
   ,
   "@composeSubmitError": {
@@ -173,5 +175,161 @@
         "type": "String"
       }
     }
-  }
+  },
+  "composeNormalModeLabel": "Normal post",
+  "composeStakedModeLabel": "Staked post",
+  "composePickVideoButton": "Choose video",
+  "composeStakedTpLabel": "TP to stake",
+  "composeStakedTpHelper": "You must answer every question correctly in the unlock quiz before posting",
+  "composeStakedEmptyError": "Please enter some text",
+  "composeStakedInvalidTpError": "Enter a stake amount of 1 or more",
+  "composeStakedLockFailedError": "Your post was blocked because you didn't pass the unlock quiz",
+  "composeStakedSubmitError": "Failed to create staked post: {error}",
+  "@composeStakedSubmitError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+
+  "lockQuizAppBarTitle": "Unlock Quiz (Toll)",
+  "lockQuizCancelButton": "Cancel",
+  "lockQuizProgress": "Toll quiz {current} / {total}",
+  "@lockQuizProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "lockQuizPassedMessage": "Unlocked. You can continue with your staked post.",
+  "lockQuizFailedMessage": "Your staked post was blocked because you didn't answer every question correctly.",
+  "lockQuizContinueButton": "Continue to post",
+  "lockQuizCloseButton": "Close",
+
+  "discoverAppBarTitle": "Discover",
+  "discoverDomainLabel": "Domain",
+  "discoverEmpty": "No data yet",
+  "discoverLoadError": "Failed to load ranking: {error}",
+  "@discoverLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "discoverScoreLabel": "Score: {score}",
+  "@discoverScoreLabel": {
+    "placeholders": {
+      "score": {
+        "type": "String"
+      }
+    }
+  },
+  "discoverBadgeExpert": "Expert",
+  "discoverBadgeMaster": "Master",
+
+  "notificationsAppBarTitle": "Notifications",
+  "notificationsSignedOutMessage": "Please log in to view your notifications",
+  "notificationsEmpty": "No notifications yet",
+  "notificationsLoadError": "Failed to load notifications: {error}",
+  "@notificationsLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+
+  "battleListAppBarTitle": "Battle — Logic Check",
+  "battleTabActive": "Active",
+  "battleTabResolved": "Resolved",
+  "battleListEmptyActive": "No active battles",
+  "battleListEmptyResolved": "No resolved battles yet",
+  "battleListLoadError": "Failed to load battles: {error}",
+  "@battleListLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "battleChallengerFallback": "Challenger",
+  "battleStakeTotalLabel": "Total staked TP: {amount}",
+  "@battleStakeTotalLabel": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "battleRemainingResolved": "Settled",
+  "battleRemainingSoon": "Resolving soon",
+  "battleRemainingHours": "{hours}h left",
+  "@battleRemainingHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "battleRemainingMinutes": "{minutes}m left",
+  "@battleRemainingMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+
+  "battleDetailAppBarTitle": "Battle Detail",
+  "battleResolvesAtLabel": "Resolves at: {dateTime}",
+  "@battleResolvesAtLabel": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
+  "battleWinnerLabel": "Winner: {winner}",
+  "@battleWinnerLabel": {
+    "placeholders": {
+      "winner": {
+        "type": "String"
+      }
+    }
+  },
+  "battleWinnerDefender": "Target post author",
+  "battleTargetPostLabel": "Target post (defender)",
+  "battleChallengerPostLabel": "Challenge post (challenger)",
+  "battlePostNotFound": "(Post not found)",
+  "battleStakeTpLabel": "Staked TP: {amount}",
+  "@battleStakeTpLabel": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "battleLoginRequiredForBet": "Log in to place a bet",
+  "battleBetInvalidAmount": "Please enter a valid TP amount",
+  "battleBetSuccess": "Bet placed",
+  "battleBetError": "Failed to place bet: {error}",
+  "@battleBetError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "battleAudienceBetTitle": "Audience bet",
+  "battleSideDefender": "Defender side",
+  "battleSideChallenger": "Challenger side",
+  "battleBetAmountLabel": "Bet TP amount",
+  "battleBetSubmitting": "Submitting...",
+  "battleBetSubmitButton": "Place bet"
 }
