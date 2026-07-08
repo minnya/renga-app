@@ -66,5 +66,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- design/system.md 10章「マネタイズ（AdMob）実装」。
+	     AdMobアプリID。以下はGoogle公式のテスト広告アプリID。
+	     本番ビルド時に .env の ADMOB_APP_ID_IOS の値へ置き換えること。 -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~1458002511</string>
 </dict>
 </plist>

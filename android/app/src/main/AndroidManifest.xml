@@ -30,6 +30,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- design/system.md 10章「マネタイズ（AdMob）実装」。
+             AdMobアプリID。以下はGoogle公式のテスト広告アプリID。
+             本番ビルド時に .env の ADMOB_APP_ID_ANDROID の値へ置き換えること。 -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

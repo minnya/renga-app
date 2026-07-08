@@ -59,6 +59,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
+  Future<void> _submitWithGoogle() async {
+    await ref.read(authControllerProvider.notifier).signInWithGoogle();
+    if (!mounted) return;
+    final state = ref.read(authControllerProvider);
+    if (!state.hasError) {
+      context.go('/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<void>>(authControllerProvider, (previous, next) {
@@ -109,6 +118,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Text('ログイン'),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: const [
+                      Expanded(child: Divider()),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: Text('または'),
+                      ),
+                      Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: isLoading ? null : _submitWithGoogle,
+                    icon: const Icon(Icons.g_mobiledata),
+                    label: const Text('Googleでログイン'),
                   ),
                   const SizedBox(height: 12),
                   TextButton(

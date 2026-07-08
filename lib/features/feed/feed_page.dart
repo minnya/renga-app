@@ -6,7 +6,11 @@ import '../../core/auth_state.dart';
 import '../quiz/quiz_controller.dart';
 import 'feed_controller.dart';
 import 'intellect_badge.dart';
+import 'native_ad_tile.dart';
 import 'post.dart';
+
+/// design/system.md 10章「マネタイズ（AdMob）実装」。投稿10件ごとにネイティブ広告を差し込む間隔。
+const _kNativeAdInterval = 10;
 
 /// design/system.md のフィード画面。投稿一覧を表示する。
 ///
@@ -84,10 +88,22 @@ class FeedPage extends ConsumerWidget {
                       ],
                     );
                   }
+                  // 投稿10件ごとにネイティブ広告を1件差し込む（design/system.md 10章）。
+                  final adCount = posts.length ~/ _kNativeAdInterval;
+                  final itemCount = posts.length + adCount;
+                  const blockSize = _kNativeAdInterval + 1;
+
                   return ListView.separated(
-                    itemCount: posts.length,
+                    itemCount: itemCount,
                     separatorBuilder: (context, index) => const Divider(height: 1),
-                    itemBuilder: (context, index) => _PostTile(post: posts[index]),
+                    itemBuilder: (context, index) {
+                      final isAdSlot = (index + 1) % blockSize == 0;
+                      if (isAdSlot) {
+                        return const NativeAdTile();
+                      }
+                      final postIndex = index - (index ~/ blockSize);
+                      return _PostTile(post: posts[postIndex]);
+                    },
                   );
                 },
                 loading: () => const Center(child: CircularProgressIndicator()),
