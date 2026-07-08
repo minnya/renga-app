@@ -82,7 +82,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/signup', builder: (context, state) => const SignupPage()),
-      GoRoute(path: '/compose', builder: (context, state) => const ComposePage()),
+      GoRoute(
+        path: '/compose',
+        // design/product.md 3.1節「YouTubeアプリの共有シートに登場」。
+        // 共有シート経由の起動時、main.dartが共有テキストを`extra`に載せて`/compose`へ遷移させる。
+        builder: (context, state) => ComposePage(initialBody: state.extra as String?),
+      ),
       GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
       GoRoute(path: '/discover', builder: (context, state) => const DiscoverPage()),
       GoRoute(path: '/notifications', builder: (context, state) => const NotificationsPage()),
