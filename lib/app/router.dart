@@ -7,6 +7,8 @@ import '../core/auth_state.dart';
 import '../core/firebase_client.dart';
 import '../features/auth/login_page.dart';
 import '../features/auth/signup_page.dart';
+import '../features/battle/battle_detail_page.dart';
+import '../features/battle/battle_list_page.dart';
 import '../features/debug/connection_check_page.dart';
 import '../features/discover/discover_page.dart';
 import '../features/feed/compose_page.dart';
@@ -15,6 +17,7 @@ import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/quiz/quiz_controller.dart';
 import '../features/quiz/quiz_page.dart';
+import 'main_shell.dart';
 
 const _publicPaths = {'/login', '/signup', '/debug'};
 
@@ -64,12 +67,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/',
-        builder: (context, state) {
+      // design/product.md 4章「情報アーキテクチャ」: InstagramやX(Twitter)と同じ
+      // ボトムナビゲーション＋タブ構造。Feed/Discover/Battle/Profileの4ブランチは
+      // それぞれ独立したナビゲーションスタック・スクロール位置を保持する
+      // (`StatefulShellRoute.indexedStack`)。Composeはタブに含めず、中央ボタンから
+      // 常にフルスクリーンで`push`する（[MainShell]参照）。
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
           // design/product.md 4章「情報アーキテクチャ」: [Splash] 相当。
           // セッション確認/オンボーディング判定が完了するまでは簡易ローディング表示に留め、
-          // FeedPageが一瞬表示されてから強制リダイレクトされるちらつきを防ぐ。
+          // ホームが一瞬表示されてから強制リダイレクトされるちらつきを防ぐ。
           if (authStateAsync.isLoading) {
             return const _RouterLoadingView();
           }
@@ -77,8 +84,32 @@ final routerProvider = Provider<GoRouter>((ref) {
               ref.watch(hasCompletedOnboardingProvider).isLoading) {
             return const _RouterLoadingView();
           }
-          return const FeedPage();
+          return MainShell(navigationShell: navigationShell);
         },
+        branches: [
+          StatefulShellBranch(routes: [GoRoute(path: '/', builder: (context, state) => const FeedPage())]),
+          StatefulShellBranch(
+            routes: [GoRoute(path: '/discover', builder: (context, state) => const DiscoverPage())],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/battles',
+                builder: (context, state) => const BattleListPage(),
+                routes: [
+                  GoRoute(
+                    path: ':battleId',
+                    builder: (context, state) =>
+                        BattleDetailPage(battleId: state.pathParameters['battleId']!),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [GoRoute(path: '/profile', builder: (context, state) => const ProfilePage())],
+          ),
+        ],
       ),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/signup', builder: (context, state) => const SignupPage()),
@@ -88,8 +119,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         // 共有シート経由の起動時、main.dartが共有テキストを`extra`に載せて`/compose`へ遷移させる。
         builder: (context, state) => ComposePage(initialBody: state.extra as String?),
       ),
-      GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
-      GoRoute(path: '/discover', builder: (context, state) => const DiscoverPage()),
       GoRoute(path: '/notifications', builder: (context, state) => const NotificationsPage()),
       GoRoute(
         path: '/onboarding-quiz',

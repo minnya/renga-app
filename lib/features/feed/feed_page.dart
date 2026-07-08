@@ -33,26 +33,17 @@ class FeedPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.feedAppBarTitle),
+        // design/product.md 4章: Discover/BattleはボトムナビゲーションのタブになったためAppBarから撤去。
         actions: [
-          IconButton(
-            tooltip: 'Discover',
-            onPressed: () => context.go('/discover'),
-            icon: const Icon(Icons.explore_outlined),
-          ),
           if (currentUser != null) ...[
             IconButton(
               tooltip: '通知',
-              onPressed: () => context.go('/notifications'),
+              onPressed: () => context.push('/notifications'),
               icon: const Icon(Icons.notifications_outlined),
             ),
             IconButton(
-              tooltip: 'Battle（ロジックチェック）',
-              onPressed: () => context.go('/battles'),
-              icon: const Icon(Icons.sports_kabaddi_outlined),
-            ),
-            IconButton(
               tooltip: l10n.feedDailyQuizTooltip,
-              onPressed: () => context.go('/daily-quiz'),
+              onPressed: () => context.push('/daily-quiz'),
               icon: const Icon(Icons.quiz_outlined),
             ),
           ],
@@ -125,12 +116,8 @@ class FeedPage extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: currentUser != null
-          ? FloatingActionButton(
-              onPressed: () => context.go('/compose'),
-              child: const Icon(Icons.edit),
-            )
-          : null,
+      // design/product.md 4章: 投稿作成はボトムナビゲーション中央のComposeタブに統一したため、
+      // Feed画面独自のFABは撤去する（X/Instagram同様、投稿導線をボトムナビに一本化）。
     );
   }
 }

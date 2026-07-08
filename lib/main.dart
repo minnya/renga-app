@@ -100,7 +100,8 @@ class _RengaAppState extends ConsumerState<RengaApp> {
     // 端末ロケールが未対応の場合は AppLocalizations が自動的に英語(テンプレート言語)にフォールバックする。
     return MaterialApp.router(
       title: 'Renga',
-      theme: buildRengaTheme(),
+      theme: buildRengaLightTheme(),
+      darkTheme: buildRengaDarkTheme(),
       routerConfig: router,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
