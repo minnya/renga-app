@@ -29,7 +29,7 @@ String intellectBadgeLabel(IntellectBadgeTier tier) {
 
 /// バッジ段階ごとの表示色。上位になるほど寒色〜彩度の高い配色にし、
 /// design/product.md 5章「Intellect=cool系グラデーション」の方針に沿う。
-Color intellectBadgeColor(IntellectBadgeTier tier) {
+MaterialColor intellectBadgeColor(IntellectBadgeTier tier) {
   return switch (tier) {
     IntellectBadgeTier.top25 => Colors.teal,
     IntellectBadgeTier.top10 => Colors.blue,
