@@ -15,6 +15,10 @@
   "feedOnboardingBannerSubtitle": "3問に答えると暫定Intellectランクが決まります",
   "feedBadgeTop5": "上位5%",
   "feedBadgeTop25": "上位25%",
+  "intellect_badge_top25_description": "知能スコア上位25%のユーザーです。デイリーミッション・ロジックチェックでの正答実績等から算出されます。",
+  "intellect_badge_top10_description": "知能スコア上位10%のユーザーです。継続的なクイズの実績と論理的思考力の証です。",
+  "intellect_badge_top5_description": "知能スコア上位5%のユーザーです。高度な論理的推論能力を備えた優秀なユーザーです。",
+  "intellect_badge_top1_description": "知能スコア上位1%のユーザーです。情報空間における最高峰の論理的思考者です。",
   "feedStakedTpLabel": "賭けTP: {amount}",
   "feedActionLike": "いいね",
   "feedActionComment": "コメント",
@@ -75,6 +79,20 @@
   "profileStrikeCountLabel": "ストライク",
   "profileEditProfileButton": "プロフィール編集",
   "profileEditComplete": "編集完了",
+  "profileWebsiteUrlLabel": "Webサイト",
+  "profileLocationLabel": "位置情報",
+  "profileAvatarChangeButton": "アバター画像を変更",
+  "profileAvatarUploadProgress": "アバター画像をアップロード中...",
+  "profileAvatarUploadSuccess": "アバター画像を更新しました",
+  "profileAvatarUploadError": "アバター画像のアップロードに失敗しました: {error}",
+  "@profileAvatarUploadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileCancelButton": "キャンセル",
 
   "composeAppBarTitle": "投稿を作成",
   "composeLoginPrompt": "ログインすると投稿できます",
@@ -147,5 +165,31 @@
   "battleBetSubmitting": "送信中...",
   "battleBetSubmitButton": "ベットする",
   "battleRoleDefender": "防衛側",
-  "battleRoleChallenger": "挑戦側"
+  "battleRoleChallenger": "挑戦側",
+
+  "settingsAppBarTitle": "設定",
+  "settingsAccountSectionTitle": "アカウント",
+  "settingsEmailLabel": "メールアドレス",
+  "settingsLogoutButton": "ログアウト",
+  "settingsLogoutConfirmTitle": "ログアウト",
+  "settingsLogoutConfirmMessage": "ログアウトしてもよろしいですか？",
+  "settingsCancel": "キャンセル",
+  "settingsLogout": "ログアウト",
+
+  "settingsNotificationSectionTitle": "通知",
+  "settingsNotificationToggle": "プッシュ通知",
+  "settingsNotificationDescription": "インタラクションと更新の通知を受け取る",
+
+  "settingsDisplaySectionTitle": "表示",
+  "settingsLayerFilterLabel": "既定レイヤーフィルター",
+  "settingsThemeModeLabel": "テーマ",
+  "settingsThemeModeLight": "ライト",
+  "settingsThemeModeDark": "ダーク",
+  "settingsThemeModeSystem": "端末設定に従う",
+
+  "settingsLanguageSectionTitle": "言語",
+  "settingsLanguageLabel": "表示言語",
+  "settingsLanguageSystem": "端末設定に従う",
+  "settingsLanguageEnglish": "English",
+  "settingsLanguageJapanese": "日本語 (Japanese)"
 }

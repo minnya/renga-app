@@ -25,6 +25,10 @@
   "feedOnboardingBannerSubtitle": "Answer 3 questions to get a provisional Intellect rank",
   "feedBadgeTop5": "Top 5%",
   "feedBadgeTop25": "Top 25%",
+  "intellect_badge_top25_description": "You are in the top 25% for Intellect score. This is calculated based on your performance in daily missions and logic checks.",
+  "intellect_badge_top10_description": "You are in the top 10% for Intellect score. Your consistent quiz performance demonstrates strong logical thinking.",
+  "intellect_badge_top5_description": "You are in the top 5% for Intellect score. You possess advanced logical reasoning and critical thinking abilities.",
+  "intellect_badge_top1_description": "You are in the top 1% for Intellect score. You are among the highest-level logical thinkers in the information space.",
   "feedStakedTpLabel": "Staked TP: {amount}",
   "@feedStakedTpLabel": {
     "placeholders": {
@@ -175,6 +179,20 @@
   "profileStrikeCountLabel": "Strikes",
   "profileEditProfileButton": "Edit Profile",
   "profileEditComplete": "Edit complete",
+  "profileWebsiteUrlLabel": "Website URL",
+  "profileLocationLabel": "Location",
+  "profileAvatarChangeButton": "Change avatar",
+  "profileAvatarUploadProgress": "Uploading avatar...",
+  "profileAvatarUploadSuccess": "Avatar updated",
+  "profileAvatarUploadError": "Failed to upload avatar: {error}",
+  "@profileAvatarUploadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileCancelButton": "Cancel",
 
   "composeAppBarTitle": "New post",
   "composeLoginPrompt": "Log in to post",
@@ -349,5 +367,31 @@
   "battleBetSubmitting": "Submitting...",
   "battleBetSubmitButton": "Place bet",
   "battleRoleDefender": "Defender",
-  "battleRoleChallenger": "Challenger"
+  "battleRoleChallenger": "Challenger",
+
+  "settingsAppBarTitle": "Settings",
+  "settingsAccountSectionTitle": "Account",
+  "settingsEmailLabel": "Email",
+  "settingsLogoutButton": "Log out",
+  "settingsLogoutConfirmTitle": "Log out",
+  "settingsLogoutConfirmMessage": "Are you sure you want to log out?",
+  "settingsCancel": "Cancel",
+  "settingsLogout": "Log out",
+
+  "settingsNotificationSectionTitle": "Notifications",
+  "settingsNotificationToggle": "Push notifications",
+  "settingsNotificationDescription": "Receive push notifications for interactions and updates",
+
+  "settingsDisplaySectionTitle": "Display",
+  "settingsLayerFilterLabel": "Default layer filter",
+  "settingsThemeModeLabel": "Theme",
+  "settingsThemeModeLight": "Light",
+  "settingsThemeModeDark": "Dark",
+  "settingsThemeModeSystem": "System",
+
+  "settingsLanguageSectionTitle": "Language",
+  "settingsLanguageLabel": "Display language",
+  "settingsLanguageSystem": "System default",
+  "settingsLanguageEnglish": "English",
+  "settingsLanguageJapanese": "日本語 (Japanese)"
 }
