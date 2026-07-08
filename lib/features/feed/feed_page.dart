@@ -27,6 +27,12 @@ class FeedPage extends ConsumerWidget {
         actions: [
           if (currentUser != null)
             IconButton(
+              tooltip: 'Battle（ロジックチェック）',
+              onPressed: () => context.go('/battles'),
+              icon: const Icon(Icons.sports_kabaddi_outlined),
+            ),
+          if (currentUser != null)
+            IconButton(
               tooltip: 'デイリークイズ',
               onPressed: () => context.go('/daily-quiz'),
               icon: const Icon(Icons.quiz_outlined),
