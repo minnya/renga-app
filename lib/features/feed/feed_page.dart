@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../quiz/quiz_controller.dart';
+import 'comments_sheet.dart';
 import 'feed_controller.dart';
 import 'intellect_badge.dart';
 import 'native_ad_tile.dart';
@@ -157,30 +159,27 @@ class _ActionBarButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.color,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor = color ?? Theme.of(context).colorScheme.onSurfaceVariant;
     return GestureDetector(
       onTap: onPressed,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 20,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+          Icon(icon, size: 20, color: effectiveColor),
           const SizedBox(height: 4),
           Text(
             label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: effectiveColor),
           ),
         ],
       ),
@@ -189,16 +188,16 @@ class _ActionBarButton extends StatelessWidget {
 }
 
 
-class _PostTile extends StatefulWidget {
+class _PostTile extends ConsumerStatefulWidget {
   const _PostTile({required this.post});
 
   final Post post;
 
   @override
-  State<_PostTile> createState() => _PostTileState();
+  ConsumerState<_PostTile> createState() => _PostTileState();
 }
 
-class _PostTileState extends State<_PostTile> {
+class _PostTileState extends ConsumerState<_PostTile> {
   YoutubePlayerController? _youtubeController;
 
   Post get post => widget.post;
@@ -221,6 +220,61 @@ class _PostTileState extends State<_PostTile> {
     super.dispose();
   }
 
+  /// design/product.md 3.12節「いいね」。楽観的なトグル。
+  Future<void> _handleToggleLike(bool currentlyLiked) async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      await ref.read(feedControllerProvider).toggleLike(
+            postId: post.id,
+            currentlyLiked: currentlyLiked,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.feedLikeError('$e'))),
+      );
+    }
+  }
+
+  /// design/product.md 3.12節「リポスト」。
+  Future<void> _handleToggleRepost(bool currentlyReposted) async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      await ref.read(feedControllerProvider).toggleRepost(
+            postId: post.id,
+            currentlyReposted: currentlyReposted,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.feedRepostError('$e'))),
+      );
+    }
+  }
+
+  /// design/product.md 3.12節「コメント」。ボトムシートでコメント一覧・投稿フォームを表示する。
+  void _handleOpenComments() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => CommentsBottomSheet(postId: post.id),
+    );
+  }
+
+  /// design/product.md 3.12節「共有」。OS標準の共有シートを開く。
+  Future<void> _handleShare() async {
+    final buffer = StringBuffer(post.body);
+    if (post.mediaUrls != null && post.mediaUrls!.isNotEmpty) {
+      buffer.write('\n${post.mediaUrls!.first}');
+    } else if (post.externalVideoUrl != null) {
+      buffer.write('\n${post.externalVideoUrl}');
+    }
+    await SharePlus.instance.share(ShareParams(text: buffer.toString()));
+  }
+
   @override
   Widget build(BuildContext context) {
     final imageUrl = post.mediaType == 'image' && (post.mediaUrls?.isNotEmpty ?? false)
@@ -230,6 +284,11 @@ class _PostTileState extends State<_PostTile> {
 
     final authorName = post.authorUsername ?? l10n.feedUnknownUser;
     final firstLetter = authorName.isNotEmpty ? authorName[0].toUpperCase() : '?';
+
+    final likedIds = ref.watch(myLikedPostIdsProvider).value ?? const <String>{};
+    final repostedIds = ref.watch(myRepostedPostIdsProvider).value ?? const <String>{};
+    final isLiked = likedIds.contains(post.id);
+    final isReposted = repostedIds.contains(post.id);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -356,40 +415,26 @@ class _PostTileState extends State<_PostTile> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _ActionBarButton(
-                icon: Icons.favorite_border,
-                label: l10n.feedActionLike,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${l10n.feedActionLike}: Coming soon')),
-                  );
-                },
+                icon: isLiked ? Icons.favorite : Icons.favorite_border,
+                label: post.likeCount > 0 ? '${post.likeCount}' : l10n.feedActionLike,
+                color: isLiked ? Colors.red : null,
+                onPressed: () => _handleToggleLike(isLiked),
               ),
               _ActionBarButton(
                 icon: Icons.chat_bubble_outline,
-                label: l10n.feedActionComment,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${l10n.feedActionComment}: Coming soon')),
-                  );
-                },
+                label: post.commentCount > 0 ? '${post.commentCount}' : l10n.feedActionComment,
+                onPressed: _handleOpenComments,
               ),
               _ActionBarButton(
                 icon: Icons.repeat,
-                label: l10n.feedActionRepost,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${l10n.feedActionRepost}: Coming soon')),
-                  );
-                },
+                label: post.repostCount > 0 ? '${post.repostCount}' : l10n.feedActionRepost,
+                color: isReposted ? Colors.green : null,
+                onPressed: () => _handleToggleRepost(isReposted),
               ),
               _ActionBarButton(
                 icon: Icons.share_outlined,
                 label: l10n.feedActionShare,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${l10n.feedActionShare}: Coming soon')),
-                  );
-                },
+                onPressed: _handleShare,
               ),
             ],
           ),

@@ -15,6 +15,8 @@ const _kNotificationEnabledKey = 'notifications_enabled';
 /// design/product.md 3.11節「Settings（設定）画面」。
 ///
 /// アカウント、通知、表示設定（レイヤーフィルター、テーマモード）、表示言語の各セクションを実装。
+/// 選択肢から1つを選ぶ項目（レイヤーフィルター・テーマ・言語）はボトムシートで編集する
+/// （画面内にドロップダウンを直接置かない）。通知ON/OFFは単純なトグルのため画面内で直接切り替える。
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
@@ -29,21 +31,13 @@ class SettingsPage extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          // セクション1: アカウント
           _AccountSection(user: currentUser),
           const Divider(height: 24),
-
-          // セクション2: 通知
           const _NotificationSection(),
           const Divider(height: 24),
-
-          // セクション3: 表示設定
           const _DisplaySettingsSection(),
           const Divider(height: 24),
-
-          // セクション4: 表示言語
           const _LanguageSection(),
-
           const SizedBox(height: 24),
         ],
       ),
@@ -74,7 +68,6 @@ class _AccountSection extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // メールアドレス表示
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
@@ -100,7 +93,6 @@ class _AccountSection extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // ログアウトボタン
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -145,7 +137,7 @@ class _AccountSection extends ConsumerWidget {
   }
 }
 
-/// セクション2: 通知（プッシュ通知ON/OFF）
+/// セクション2: 通知（プッシュ通知ON/OFF）。単純なトグルのため画面内で直接切り替える。
 class _NotificationSection extends ConsumerWidget {
   const _NotificationSection();
 
@@ -154,8 +146,6 @@ class _NotificationSection extends ConsumerWidget {
     final localization = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
-    // SharedPreferencesで保存された通知設定を読み込む
-    // (既存のFCMトークン登録処理に合わせて、ローカルON/OFF値のみ保存する想定)
     return StatefulBuilder(
       builder: (context, setState) {
         return FutureBuilder<bool>(
@@ -212,7 +202,63 @@ class _NotificationSection extends ConsumerWidget {
   }
 }
 
-/// セクション3: 表示設定（レイヤーフィルター、テーマモード）
+/// 単一選択肢を選ぶための共通ボトムシート。
+/// design/system.md 9章「設定・編集系UIの方針」。intellect_badge.dartと同じ角丸の意匠。
+Future<void> _showChoiceSheet<T>({
+  required BuildContext context,
+  required String title,
+  required T currentValue,
+  required List<(T, String)> options,
+  required ValueChanged<T> onSelected,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (sheetContext) {
+      final theme = Theme.of(sheetContext);
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              RadioGroup<T>(
+                groupValue: currentValue,
+                onChanged: (value) {
+                  if (value != null) {
+                    onSelected(value);
+                  }
+                  Navigator.pop(sheetContext);
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final option in options)
+                      RadioListTile<T>(
+                        value: option.$1,
+                        title: Text(option.$2),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// セクション3: 表示設定（レイヤーフィルター、テーマモード）。ボトムシートで選択する。
 class _DisplaySettingsSection extends ConsumerWidget {
   const _DisplaySettingsSection();
 
@@ -235,114 +281,59 @@ class _DisplaySettingsSection extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // レイヤーフィルター設定
-          _buildSettingItem(
-            context: context,
-            title: localization.settingsLayerFilterLabel,
-            child: _buildLayerFilterDropdown(ref, currentFilter),
-          ),
-          const SizedBox(height: 12),
-          // テーマモード設定
-          _buildSettingItem(
-            context: context,
-            title: localization.settingsThemeModeLabel,
-            child: _buildThemeModeDropdown(ref, currentThemeMode),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLayerFilterDropdown(WidgetRef ref, LayerFilter currentFilter) {
-    return Consumer(builder: (context, ref, _) {
-      final localization = AppLocalizations.of(context);
-      return DropdownButton<LayerFilter>(
-        isExpanded: true,
-        value: currentFilter,
-        items: [
-          DropdownMenuItem(
-            value: LayerFilter.all,
-            child: Text(localization.feedFilterAll),
-          ),
-          DropdownMenuItem(
-            value: LayerFilter.top25,
-            child: Text(localization.feedFilterTop25),
-          ),
-          DropdownMenuItem(
-            value: LayerFilter.top5,
-            child: Text(localization.feedFilterTop5),
-          ),
-        ],
-        onChanged: (value) async {
-          if (value != null) {
-            await ref.read(layerFilterProvider.notifier).select(value);
-          }
-        },
-      );
-    });
-  }
-
-  Widget _buildThemeModeDropdown(WidgetRef ref, ThemeMode currentThemeMode) {
-    return Consumer(builder: (context, ref, _) {
-      final localization = AppLocalizations.of(context);
-      return DropdownButton<ThemeMode>(
-        isExpanded: true,
-        value: currentThemeMode,
-        items: [
-          DropdownMenuItem(
-            value: ThemeMode.light,
-            child: Text(localization.settingsThemeModeLight),
-          ),
-          DropdownMenuItem(
-            value: ThemeMode.dark,
-            child: Text(localization.settingsThemeModeDark),
-          ),
-          DropdownMenuItem(
-            value: ThemeMode.system,
-            child: Text(localization.settingsThemeModeSystem),
-          ),
-        ],
-        onChanged: (value) async {
-          if (value != null) {
-            await ref.read(themeModeProvider.notifier).setThemeMode(value);
-          }
-        },
-      );
-    });
-  }
-
-  Widget _buildSettingItem({
-    required BuildContext context,
-    required String title,
-    required Widget child,
-  }) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border.all(color: theme.colorScheme.outline),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(localization.settingsLayerFilterLabel),
+            subtitle: Text(_layerFilterLabel(currentFilter, localization)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showChoiceSheet<LayerFilter>(
+              context: context,
+              title: localization.settingsLayerFilterLabel,
+              currentValue: currentFilter,
+              options: [
+                (LayerFilter.all, localization.feedFilterAll),
+                (LayerFilter.top25, localization.feedFilterTop25),
+                (LayerFilter.top5, localization.feedFilterTop5),
+              ],
+              onSelected: (value) => ref.read(layerFilterProvider.notifier).select(value),
             ),
           ),
-          const SizedBox(height: 8),
-          child,
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(localization.settingsThemeModeLabel),
+            subtitle: Text(_themeModeLabel(currentThemeMode, localization)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showChoiceSheet<ThemeMode>(
+              context: context,
+              title: localization.settingsThemeModeLabel,
+              currentValue: currentThemeMode,
+              options: [
+                (ThemeMode.light, localization.settingsThemeModeLight),
+                (ThemeMode.dark, localization.settingsThemeModeDark),
+                (ThemeMode.system, localization.settingsThemeModeSystem),
+              ],
+              onSelected: (value) => ref.read(themeModeProvider.notifier).setThemeMode(value),
+            ),
+          ),
         ],
       ),
     );
   }
+
+  String _layerFilterLabel(LayerFilter filter, AppLocalizations l10n) => switch (filter) {
+        LayerFilter.all => l10n.feedFilterAll,
+        LayerFilter.top25 => l10n.feedFilterTop25,
+        LayerFilter.top5 => l10n.feedFilterTop5,
+      };
+
+  String _themeModeLabel(ThemeMode mode, AppLocalizations l10n) => switch (mode) {
+        ThemeMode.light => l10n.settingsThemeModeLight,
+        ThemeMode.dark => l10n.settingsThemeModeDark,
+        ThemeMode.system => l10n.settingsThemeModeSystem,
+      };
 }
 
-/// セクション4: 表示言語（英語/日本語/端末追従）
+/// セクション4: 表示言語（英語/日本語/端末追従）。ボトムシートで選択する。
 class _LanguageSection extends ConsumerWidget {
   const _LanguageSection();
 
@@ -364,49 +355,33 @@ class _LanguageSection extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              border: Border.all(color: theme.colorScheme.outline),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  localization.settingsLanguageLabel,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                DropdownButton<Locale?>(
-                  isExpanded: true,
-                  value: currentLocale,
-                  items: [
-                    DropdownMenuItem<Locale?>(
-                      value: null,
-                      child: Text(localization.settingsLanguageSystem),
-                    ),
-                    DropdownMenuItem<Locale?>(
-                      value: const Locale('en'),
-                      child: Text(localization.settingsLanguageEnglish),
-                    ),
-                    DropdownMenuItem<Locale?>(
-                      value: const Locale('ja'),
-                      child: Text(localization.settingsLanguageJapanese),
-                    ),
-                  ],
-                  onChanged: (value) async {
-                    await ref.read(localeProvider.notifier).setLocale(value);
-                  },
-                ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(localization.settingsLanguageLabel),
+            subtitle: Text(_localeLabel(currentLocale, localization)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showChoiceSheet<Locale?>(
+              context: context,
+              title: localization.settingsLanguageLabel,
+              currentValue: currentLocale,
+              options: [
+                (null, localization.settingsLanguageSystem),
+                (const Locale('en'), localization.settingsLanguageEnglish),
+                (const Locale('ja'), localization.settingsLanguageJapanese),
               ],
+              onSelected: (value) => ref.read(localeProvider.notifier).setLocale(value),
             ),
           ),
         ],
       ),
     );
+  }
+
+  String _localeLabel(Locale? locale, AppLocalizations l10n) {
+    if (locale == null) return l10n.settingsLanguageSystem;
+    return switch (locale.languageCode) {
+      'ja' => l10n.settingsLanguageJapanese,
+      _ => l10n.settingsLanguageEnglish,
+    };
   }
 }

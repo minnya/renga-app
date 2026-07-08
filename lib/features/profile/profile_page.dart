@@ -1,9 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../app/theme.dart';
 import '../../core/auth_state.dart';
@@ -11,12 +8,14 @@ import '../../core/supabase_client.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../feed/intellect_badge.dart';
 import 'profile_controller.dart';
+import 'profile_edit_sheet.dart';
 
 /// プロフィール表示・編集画面。
 ///
 /// - 未ログイン時: ログイン画面へ誘導する案内を表示する。
-/// - ログイン時: 自分の `profiles` 行を取得し、username（読み取り専用）、
-///   display_name / bio（編集可能）、influence / intellect の2軸評価（読み取り専用）を表示する。
+/// - ログイン時: 自分の `profiles` 行を取得し、常に読み取り専用ビューを表示する。
+///   編集は「編集」ボタンから開く [ProfileEditSheet]（ボトムシート）で行う
+///   （design/product.md 3.10節）。
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
 
@@ -70,133 +69,15 @@ class _SignedOutView extends StatelessWidget {
   }
 }
 
-class _SignedInProfileView extends ConsumerStatefulWidget {
+class _SignedInProfileView extends ConsumerWidget {
   const _SignedInProfileView({required this.userId});
 
   final String userId;
 
   @override
-  ConsumerState<_SignedInProfileView> createState() => _SignedInProfileViewState();
-}
-
-class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
-  final _displayNameController = TextEditingController();
-  final _bioController = TextEditingController();
-  final _websiteUrlController = TextEditingController();
-  final _locationController = TextEditingController();
-  bool _initialized = false;
-  bool _saving = false;
-  bool _editMode = false;
-  String? _selectedAvatarPath; // Temporary avatar for upload preview
-
-  @override
-  void dispose() {
-    _displayNameController.dispose();
-    _bioController.dispose();
-    _websiteUrlController.dispose();
-    _locationController.dispose();
-    super.dispose();
-  }
-
-  void _initializeControllersIfNeeded(Map<String, dynamic> profile) {
-    if (_initialized) return;
-    _displayNameController.text = (profile['display_name'] as String?) ?? '';
-    _bioController.text = (profile['bio'] as String?) ?? '';
-    _websiteUrlController.text = (profile['website_url'] as String?) ?? '';
-    _locationController.text = (profile['location'] as String?) ?? '';
-    _initialized = true;
-  }
-
-  Future<void> _handlePickAvatar() async {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    try {
-      final imagePicker = ImagePicker();
-      final pickedFile = await imagePicker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-      if (pickedFile == null) return;
-
-      setState(() {
-        _selectedAvatarPath = pickedFile.path;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.profileAvatarUploadError('$e'))),
-      );
-    }
-  }
-
-  Future<void> _handleSave() async {
-    final l10n = AppLocalizations.of(context);
-    setState(() => _saving = true);
-    try {
-      String? newAvatarUrl;
-
-      // Upload avatar image if selected
-      if (_selectedAvatarPath != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.profileAvatarUploadProgress)),
-        );
-
-        final imageFile = await Future.value(
-          XFile(_selectedAvatarPath!),
-        );
-        final bytes = await imageFile.readAsBytes();
-        final ext = _selectedAvatarPath!.split('.').last;
-
-        newAvatarUrl = await ref.read(profileControllerProvider).uploadAvatarImage(
-              userId: widget.userId,
-              bytes: bytes,
-              fileExt: ext,
-            );
-
-        // Update avatar_url in the database
-        await supabase.from('profiles').update({
-          'avatar_url': newAvatarUrl,
-        }).eq('id', widget.userId);
-      }
-
-      // Update other profile fields
-      await ref.read(profileControllerProvider).updateProfile(
-            userId: widget.userId,
-            displayName: _displayNameController.text.trim(),
-            bio: _bioController.text.trim(),
-            websiteUrl: _websiteUrlController.text.trim(),
-            location: _locationController.text.trim(),
-          );
-
-      if (!mounted) return;
-      setState(() {
-        _editMode = false;
-        _selectedAvatarPath = null;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.profileSaveSuccess)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.profileSaveError('$e'))),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _handleSignOut() async {
-    await supabase.auth.signOut();
-    if (!mounted) return;
-    context.go('/login');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final profileAsync = ref.watch(profileProvider(widget.userId));
+    final profileAsync = ref.watch(profileProvider(userId));
     final theme = Theme.of(context);
 
     return profileAsync.when(
@@ -205,8 +86,6 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
         child: Text(l10n.profileLoadError('$error')),
       ),
       data: (profile) {
-        _initializeControllersIfNeeded(profile);
-
         final avatarUrl = (profile['avatar_url'] as String?);
         final displayName = (profile['display_name'] as String?) ?? '';
         final username = (profile['username'] as String?) ?? '';
@@ -226,16 +105,12 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Avatar section
                 _buildAvatarSection(
                   avatarUrl,
                   displayName.isNotEmpty ? displayName : username,
                   theme,
-                  editMode: _editMode,
                 ),
                 const SizedBox(height: 20),
-
-                // Stats row (Instagram style)
                 _buildStatsRow(
                   influenceScore,
                   influencePercentile,
@@ -245,8 +120,6 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                   theme,
                 ),
                 const SizedBox(height: 16),
-
-                // Badge row (IntellectBadge, TP, Strikes)
                 _buildBadgeRow(
                   intellectPercentile,
                   tpBalance,
@@ -255,160 +128,96 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                   theme,
                 ),
                 const SizedBox(height: 24),
-
-                // Username display
-                if (!_editMode)
-                  Column(
-                    children: [
-                      if (displayName.isNotEmpty)
-                        Text(
-                          displayName,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      if (displayName.isNotEmpty) const SizedBox(height: 4),
+                Column(
+                  children: [
+                    if (displayName.isNotEmpty)
                       Text(
-                        '@$username',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                        displayName,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      if (bio.isNotEmpty) const SizedBox(height: 12),
-                      if (bio.isNotEmpty)
-                        Text(
-                          bio,
-                          style: theme.textTheme.bodyMedium,
-                          textAlign: TextAlign.center,
-                        ),
-                      if (location.isNotEmpty) const SizedBox(height: 8),
-                      if (location.isNotEmpty)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.location_on_outlined,
-                              size: 16,
+                    if (displayName.isNotEmpty) const SizedBox(height: 4),
+                    Text(
+                      '@$username',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    if (bio.isNotEmpty) const SizedBox(height: 12),
+                    if (bio.isNotEmpty)
+                      Text(
+                        bio,
+                        style: theme.textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                    if (location.isNotEmpty) const SizedBox(height: 8),
+                    if (location.isNotEmpty)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 16,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            location,
+                            style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              location,
+                          ),
+                        ],
+                      ),
+                    if (websiteUrl.isNotEmpty) const SizedBox(height: 8),
+                    if (websiteUrl.isNotEmpty)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.link_outlined,
+                            size: 16,
+                            color: RengaColors.accent,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              websiteUrl,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                                color: RengaColors.accent,
+                                decoration: TextDecoration.underline,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        ),
-                      if (websiteUrl.isNotEmpty) const SizedBox(height: 8),
-                      if (websiteUrl.isNotEmpty)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.link_outlined,
-                              size: 16,
-                              color: RengaColors.accent,
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                websiteUrl,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: RengaColors.accent,
-                                  decoration: TextDecoration.underline,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-
-                const SizedBox(height: 24),
-
-                // Edit mode
-                if (_editMode) ...[
-                  TextField(
-                    controller: _displayNameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.profileDisplayNameLabel,
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _bioController,
-                    decoration: InputDecoration(
-                      labelText: l10n.profileBioLabel,
-                      border: const OutlineInputBorder(),
-                    ),
-                    minLines: 3,
-                    maxLines: 6,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _websiteUrlController,
-                    decoration: InputDecoration(
-                      labelText: l10n.profileWebsiteUrlLabel,
-                      border: const OutlineInputBorder(),
-                      hintText: 'https://example.com',
-                    ),
-                    keyboardType: TextInputType.url,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _locationController,
-                    decoration: InputDecoration(
-                      labelText: l10n.profileLocationLabel,
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: _saving ? null : _handleSave,
-                          child: _saving
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : Text(l10n.profileSaveButton),
-                        ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => setState(() => _editMode = false),
-                          child: Text(l10n.profileCancelButton),
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  FilledButton.icon(
-                    onPressed: () => setState(() => _editMode = true),
-                    icon: const Icon(Icons.edit),
-                    label: Text(l10n.profileEditProfileButton),
-                  ),
-                ],
-
+                  ],
+                ),
                 const SizedBox(height: 24),
-
-                // Sign out button
+                FilledButton.icon(
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                    ),
+                    builder: (_) => ProfileEditSheet(userId: userId, profile: profile),
+                  ),
+                  icon: const Icon(Icons.edit),
+                  label: Text(l10n.profileEditProfileButton),
+                ),
+                const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
-                    onPressed: _handleSignOut,
+                    onPressed: () async {
+                      await supabase.auth.signOut();
+                      if (context.mounted) context.go('/login');
+                    },
                     child: Text(l10n.profileSignOutButton),
                   ),
                 ),
@@ -420,68 +229,30 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
     );
   }
 
-  Widget _buildAvatarSection(
-    String? avatarUrl,
-    String fallbackName,
-    ThemeData theme, {
-    bool editMode = false,
-  }) {
-    final l10n = AppLocalizations.of(context);
+  Widget _buildAvatarSection(String? avatarUrl, String fallbackName, ThemeData theme) {
     return Column(
       children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: RengaColors.accent.withValues(alpha: 0.1),
-                border: Border.all(
-                  color: RengaColors.accent.withValues(alpha: 0.3),
-                  width: 2,
-                ),
-              ),
-              child: (_selectedAvatarPath != null && editMode)
-                  ? ClipOval(
-                      child: Image.file(
-                        File(_selectedAvatarPath!),
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : (avatarUrl != null && avatarUrl.isNotEmpty
-                      ? ClipOval(
-                          child: Image.network(
-                            avatarUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return _buildInitialAvatar(fallbackName, theme);
-                            },
-                          ),
-                        )
-                      : _buildInitialAvatar(fallbackName, theme)),
-            ),
-            if (editMode)
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: FloatingActionButton.small(
-                  onPressed: _handlePickAvatar,
-                  backgroundColor: RengaColors.accent,
-                  child: const Icon(Icons.camera_alt),
-                ),
-              ),
-          ],
-        ),
-        if (editMode) const SizedBox(height: 12),
-        if (editMode)
-          Text(
-            l10n.profileAvatarChangeButton,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: RengaColors.accent.withValues(alpha: 0.1),
+            border: Border.all(
+              color: RengaColors.accent.withValues(alpha: 0.3),
+              width: 2,
             ),
           ),
+          child: (avatarUrl != null && avatarUrl.isNotEmpty)
+              ? ClipOval(
+                  child: Image.network(
+                    avatarUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildInitialAvatar(fallbackName, theme),
+                  ),
+                )
+              : _buildInitialAvatar(fallbackName, theme),
+        ),
       ],
     );
   }
@@ -555,10 +326,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall,
-          ),
+          Text(label, style: theme.textTheme.bodySmall),
           const SizedBox(height: 4),
           Text(
             percentile,
@@ -578,14 +346,10 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
     AppLocalizations l10n,
     ThemeData theme,
   ) {
-    final badges = <Widget>[];
-
-    // Intellect badge
-    badges.add(
+    final badges = <Widget>[
       IntellectBadge(percentile: intellectPercentile),
-    );
+    ];
 
-    // TP Balance chip
     final tpBalanceNum = tpBalance is num ? tpBalance : 0;
     badges.add(
       Chip(
@@ -597,7 +361,6 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
       ),
     );
 
-    // Strike count badge (only if > 0)
     if (strikeCount > 0) {
       badges.add(
         Chip(
