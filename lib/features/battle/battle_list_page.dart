@@ -109,12 +109,37 @@ class _BattleCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      '${battle.targetPostAuthorUsername ?? l10n.feedUnknownUser} vs '
-                      '${battle.challengerPostAuthorUsername ?? l10n.battleChallengerFallback}',
-                      style: Theme.of(context).textTheme.titleSmall,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            battle.targetPostAuthorUsername ?? l10n.feedUnknownUser,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(
+                            Icons.bolt,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            battle.challengerPostAuthorUsername ?? l10n.battleChallengerFallback,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Chip(
                     label: Text(battle.isActive ? l10n.battleTabActive : l10n.battleTabResolved),
                     visualDensity: VisualDensity.compact,
@@ -128,17 +153,24 @@ class _BattleCard extends StatelessWidget {
                   battle.targetPostBody!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               const SizedBox(height: 8),
               Row(
                 children: [
                   Icon(Icons.paid_outlined, size: 16, color: Theme.of(context).colorScheme.secondary),
                   const SizedBox(width: 4),
-                  Text(l10n.battleStakeTotalLabel(battle.totalStakeTp.toStringAsFixed(0))),
+                  Text(
+                    l10n.battleStakeTotalLabel(battle.totalStakeTp.toStringAsFixed(0)),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                   const Spacer(),
                   Icon(Icons.timer_outlined, size: 16, color: Theme.of(context).colorScheme.secondary),
                   const SizedBox(width: 4),
-                  Text(_remainingLabel(l10n, battle)),
+                  Text(
+                    _remainingLabel(l10n, battle),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
               ),
             ],

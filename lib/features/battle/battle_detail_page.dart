@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/theme.dart';
 import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import 'battle.dart';
@@ -70,6 +71,7 @@ class _BattleDetailBody extends ConsumerWidget {
           username: battle.targetPostAuthorUsername,
           body: battle.targetPostBody,
           stakeTp: battle.defenderStakeTp,
+          isChallenger: false,
         ),
         const SizedBox(height: 8),
         const Center(child: Icon(Icons.compare_arrows, size: 28)),
@@ -79,6 +81,7 @@ class _BattleDetailBody extends ConsumerWidget {
           username: battle.challengerPostAuthorUsername,
           body: battle.challengerPostBody,
           stakeTp: battle.challengerStakeTp,
+          isChallenger: true,
         ),
         const SizedBox(height: 24),
         if (battle.isActive && currentUser != null)
@@ -105,30 +108,83 @@ class _PostCompareCard extends StatelessWidget {
     required this.username,
     required this.body,
     required this.stakeTp,
+    this.isChallenger = false,
   });
 
   final String label;
   final String? username;
   final String? body;
   final num stakeTp;
+  final bool isChallenger;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+
+    // Use intellect color for target (defender) on the left, influence for challenger on the right
+    final accentColor = isChallenger ? RengaColors.influence : RengaColors.intellect;
+
+    // Create a subtle background and border using the accent color with low opacity
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = accentColor.withAlpha(100);
+    final backgroundColor = accentColor.withAlpha(isDark ? 20 : 15);
+
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.labelMedium),
-            const SizedBox(height: 4),
-            Text(username ?? l10n.feedUnknownUser, style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            Text(body ?? l10n.battlePostNotFound),
-            const SizedBox(height: 8),
-            Text(l10n.battleStakeTpLabel(stakeTp.toStringAsFixed(0))),
-          ],
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: borderColor, width: 1.5),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(11),
+          color: backgroundColor,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: accentColor.withAlpha(40),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Text(
+                      isChallenger ? l10n.battleRoleChallenger : l10n.battleRoleDefender,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: accentColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                username ?? l10n.feedUnknownUser,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                body ?? l10n.battlePostNotFound,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.battleStakeTpLabel(stakeTp.toStringAsFixed(0)),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: accentColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
