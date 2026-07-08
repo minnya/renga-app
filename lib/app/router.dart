@@ -64,6 +64,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: _AuthRefreshListenable(ref),
     // design/system.md 4章「Analytics」: 画面遷移の自動計測。
     observers: [ref.watch(firebaseAnalyticsObserverProvider)],
+    // 未定義のパス（Web版で古いURLがブックマーク/共有された場合、存在しない通知
+    // ディープリンク等）にアクセスされた際、GoExceptionでアプリごとクラッシュさせず
+    // ホームへリダイレクトする（design/product.md 4章のIA外のパスへのフォールバック）。
+    onException: (context, state, router) => router.go('/'),
     redirect: (context, state) {
       // 初回のセッション確認が完了するまではリダイレクトを保留する。
       if (authStateAsync.isLoading) return null;
