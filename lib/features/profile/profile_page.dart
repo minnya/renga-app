@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth_state.dart';
 import '../../core/supabase_client.dart';
+import '../feed/intellect_badge.dart';
 import 'profile_controller.dart';
 
 /// プロフィール表示・編集画面。
@@ -124,8 +125,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
         final influenceScore = profile['influence_score'];
         final influencePercentile = profile['influence_percentile'];
         final intellectScore = profile['intellect_score'];
-        final intellectPercentile = profile['intellect_percentile'];
-        final intellectBadgeLabel = _intellectBadgeLabel(intellectPercentile as num?);
+        final intellectPercentile = profile['intellect_percentile'] as num?;
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -180,7 +180,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                     label: 'Intellect',
                     score: intellectScore,
                     percentile: intellectPercentile,
-                    badgeLabel: intellectBadgeLabel,
+                    badge: IntellectBadge(percentile: intellectPercentile),
                   ),
                 ),
               ],
@@ -197,27 +197,18 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
   }
 }
 
-/// design/product.md 4章「上位25%/5%知能バッジ」。値が小さいほど上位を表す前提。
-/// パーセンタイル自動再計算バッチ（Phase3）が未実装のため、現状は全ユーザーで`0`のまま。
-String? _intellectBadgeLabel(num? percentile) {
-  if (percentile == null) return null;
-  if (percentile <= 5) return '上位5%';
-  if (percentile <= 25) return '上位25%';
-  return null;
-}
-
 class _ScoreCard extends StatelessWidget {
   const _ScoreCard({
     required this.label,
     required this.score,
     required this.percentile,
-    this.badgeLabel,
+    this.badge,
   });
 
   final String label;
   final dynamic score;
   final dynamic percentile;
-  final String? badgeLabel;
+  final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -230,13 +221,9 @@ class _ScoreCard extends StatelessWidget {
             Row(
               children: [
                 Text(label, style: Theme.of(context).textTheme.labelLarge),
-                if (badgeLabel != null) ...[
+                if (badge != null) ...[
                   const SizedBox(width: 8),
-                  Chip(
-                    label: Text(badgeLabel!, style: const TextStyle(fontSize: 11)),
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
+                  badge!,
                 ],
               ],
             ),

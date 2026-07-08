@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth_state.dart';
 import '../quiz/quiz_controller.dart';
 import 'feed_controller.dart';
+import 'intellect_badge.dart';
 import 'post.dart';
 
 /// design/system.md のフィード画面。投稿一覧を表示する。
@@ -125,14 +126,6 @@ class _OnboardingQuizBanner extends ConsumerWidget {
   }
 }
 
-/// design/product.md 4章「上位25%/5%知能バッジ」。値が小さいほど上位を表す前提。
-String? _intellectBadgeLabel(num? percentile) {
-  if (percentile == null) return null;
-  if (percentile <= 5) return '上位5%';
-  if (percentile <= 25) return '上位25%';
-  return null;
-}
-
 class _PostTile extends StatelessWidget {
   const _PostTile({required this.post});
 
@@ -140,7 +133,6 @@ class _PostTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badgeLabel = _intellectBadgeLabel(post.authorIntellectPercentile);
     final imageUrl = post.mediaType == 'image' && (post.mediaUrls?.isNotEmpty ?? false)
         ? post.mediaUrls!.first
         : null;
@@ -158,14 +150,8 @@ class _PostTile extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              if (badgeLabel != null) ...[
-                const SizedBox(width: 8),
-                Chip(
-                  label: Text(badgeLabel, style: const TextStyle(fontSize: 11)),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ],
+              const SizedBox(width: 8),
+              IntellectBadge(percentile: post.authorIntellectPercentile),
               const SizedBox(width: 8),
               Text(
                 _formatCreatedAt(post.createdAt),
