@@ -30,10 +30,7 @@ class DefaultFirebaseOptions {
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -53,7 +50,6 @@ class DefaultFirebaseOptions {
     projectId: 'chatapp-renga',
     storageBucket: 'chatapp-renga.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBLUKTWvPN_eTK7RenLZq1wcEcwQfF0IOY',
     appId: '1:357005393053:ios:043be3423b10a400b36874',
@@ -62,7 +58,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'chatapp-renga.firebasestorage.app',
     iosBundleId: 'com.minnya.renga',
   );
-
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyCQlHsJNmBSnBe3xcbdXUHpRt-LYERSU2Q',
     appId: '1:357005393053:web:5504778b7d5ca95ab36874',
@@ -71,5 +66,15 @@ class DefaultFirebaseOptions {
     authDomain: 'chatapp-renga.firebaseapp.com',
     storageBucket: 'chatapp-renga.firebasestorage.app',
     measurementId: 'G-DWNZWP9CXW',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyCQlHsJNmBSnBe3xcbdXUHpRt-LYERSU2Q',
+    appId: '1:357005393053:web:45632f22707086acb36874',
+    messagingSenderId: '357005393053',
+    projectId: 'chatapp-renga',
+    authDomain: 'chatapp-renga.firebaseapp.com',
+    storageBucket: 'chatapp-renga.firebasestorage.app',
+    measurementId: 'G-1FBX7QBRZ5',
   );
 }
