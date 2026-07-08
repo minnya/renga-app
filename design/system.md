@@ -53,6 +53,8 @@ create table public.profiles (
   display_name text,
   avatar_url text,
   bio text,
+  website_url text, -- product.md 3.10節「プロフィール詳細設定」の外部リンク1件
+  location text, -- product.md 3.10節。自由入力、位置情報の実測はしない
   locale text not null default 'en', -- ユーザーの表示言語設定 (en | ja)
   influence_score numeric not null default 0,
   influence_percentile numeric not null default 0,
