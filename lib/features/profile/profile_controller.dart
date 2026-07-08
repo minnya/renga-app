@@ -37,8 +37,8 @@ class ProfileController {
     await supabase.from('profiles').update({
       'display_name': displayName,
       'bio': bio,
-      if (websiteUrl != null) 'website_url': websiteUrl,
-      if (location != null) 'location': location,
+      'website_url': ?websiteUrl,
+      'location': ?location,
     }).eq('id', userId);
 
     ref.invalidate(profileProvider(userId));
