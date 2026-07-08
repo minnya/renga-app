@@ -1,3 +1,6 @@
+import 'dart:math';
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/supabase_client.dart';
@@ -28,13 +31,33 @@ class ProfileController {
     required String userId,
     required String displayName,
     required String bio,
+    String? websiteUrl,
+    String? location,
   }) async {
     await supabase.from('profiles').update({
       'display_name': displayName,
       'bio': bio,
+      if (websiteUrl != null) 'website_url': websiteUrl,
+      if (location != null) 'location': location,
     }).eq('id', userId);
 
     ref.invalidate(profileProvider(userId));
+  }
+
+  /// design/product.md 3.10節「プロフィール詳細設定」。
+  /// アバター画像をSupabase Storage（`avatars`バケット）にアップロードし、
+  /// 返却されたURLを`profiles.avatar_url`の更新に使用する。
+  Future<String> uploadAvatarImage({
+    required String userId,
+    required Uint8List bytes,
+    required String fileExt,
+  }) async {
+    final uniqueName =
+        '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 31)}.$fileExt';
+    final path = '$userId/$uniqueName';
+
+    await supabase.storage.from('avatars').uploadBinary(path, bytes);
+    return supabase.storage.from('avatars').getPublicUrl(path);
   }
 }
 

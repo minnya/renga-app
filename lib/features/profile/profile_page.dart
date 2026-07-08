@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../app/theme.dart';
 import '../../core/auth_state.dart';
@@ -79,14 +82,19 @@ class _SignedInProfileView extends ConsumerStatefulWidget {
 class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
   final _displayNameController = TextEditingController();
   final _bioController = TextEditingController();
+  final _websiteUrlController = TextEditingController();
+  final _locationController = TextEditingController();
   bool _initialized = false;
   bool _saving = false;
   bool _editMode = false;
+  String? _selectedAvatarPath; // Temporary avatar for upload preview
 
   @override
   void dispose() {
     _displayNameController.dispose();
     _bioController.dispose();
+    _websiteUrlController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -94,20 +102,78 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
     if (_initialized) return;
     _displayNameController.text = (profile['display_name'] as String?) ?? '';
     _bioController.text = (profile['bio'] as String?) ?? '';
+    _websiteUrlController.text = (profile['website_url'] as String?) ?? '';
+    _locationController.text = (profile['location'] as String?) ?? '';
     _initialized = true;
+  }
+
+  Future<void> _handlePickAvatar() async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      final imagePicker = ImagePicker();
+      final pickedFile = await imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (pickedFile == null) return;
+
+      setState(() {
+        _selectedAvatarPath = pickedFile.path;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.profileAvatarUploadError('$e'))),
+      );
+    }
   }
 
   Future<void> _handleSave() async {
     final l10n = AppLocalizations.of(context);
     setState(() => _saving = true);
     try {
+      String? newAvatarUrl;
+
+      // Upload avatar image if selected
+      if (_selectedAvatarPath != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.profileAvatarUploadProgress)),
+        );
+
+        final imageFile = await Future.value(
+          XFile(_selectedAvatarPath!),
+        );
+        final bytes = await imageFile.readAsBytes();
+        final ext = _selectedAvatarPath!.split('.').last;
+
+        newAvatarUrl = await ref.read(profileControllerProvider).uploadAvatarImage(
+              userId: widget.userId,
+              bytes: bytes,
+              fileExt: ext,
+            );
+
+        // Update avatar_url in the database
+        await supabase.from('profiles').update({
+          'avatar_url': newAvatarUrl,
+        }).eq('id', widget.userId);
+      }
+
+      // Update other profile fields
       await ref.read(profileControllerProvider).updateProfile(
             userId: widget.userId,
             displayName: _displayNameController.text.trim(),
             bio: _bioController.text.trim(),
+            websiteUrl: _websiteUrlController.text.trim(),
+            location: _locationController.text.trim(),
           );
+
       if (!mounted) return;
-      setState(() => _editMode = false);
+      setState(() {
+        _editMode = false;
+        _selectedAvatarPath = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.profileSaveSuccess)),
       );
@@ -145,6 +211,8 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
         final displayName = (profile['display_name'] as String?) ?? '';
         final username = (profile['username'] as String?) ?? '';
         final bio = (profile['bio'] as String?) ?? '';
+        final websiteUrl = (profile['website_url'] as String?) ?? '';
+        final location = (profile['location'] as String?) ?? '';
         final influenceScore = profile['influence_score'] ?? 0;
         final influencePercentile = profile['influence_percentile'] ?? 0;
         final intellectScore = profile['intellect_score'] ?? 0;
@@ -163,6 +231,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                   avatarUrl,
                   displayName.isNotEmpty ? displayName : username,
                   theme,
+                  editMode: _editMode,
                 ),
                 const SizedBox(height: 20),
 
@@ -214,6 +283,48 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                           style: theme.textTheme.bodyMedium,
                           textAlign: TextAlign.center,
                         ),
+                      if (location.isNotEmpty) const SizedBox(height: 8),
+                      if (location.isNotEmpty)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 16,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              location,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (websiteUrl.isNotEmpty) const SizedBox(height: 8),
+                      if (websiteUrl.isNotEmpty)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.link_outlined,
+                              size: 16,
+                              color: RengaColors.accent,
+                            ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                websiteUrl,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: RengaColors.accent,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
 
@@ -239,6 +350,24 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                     maxLines: 6,
                   ),
                   const SizedBox(height: 16),
+                  TextField(
+                    controller: _websiteUrlController,
+                    decoration: InputDecoration(
+                      labelText: l10n.profileWebsiteUrlLabel,
+                      border: const OutlineInputBorder(),
+                      hintText: 'https://example.com',
+                    ),
+                    keyboardType: TextInputType.url,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _locationController,
+                    decoration: InputDecoration(
+                      labelText: l10n.profileLocationLabel,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
@@ -260,7 +389,7 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => setState(() => _editMode = false),
-                          child: Text(l10n.profileGoToLogin), // Reuse or use a cancel key
+                          child: Text(l10n.profileCancelButton),
                         ),
                       ),
                     ],
@@ -291,32 +420,68 @@ class _SignedInProfileViewState extends ConsumerState<_SignedInProfileView> {
     );
   }
 
-  Widget _buildAvatarSection(String? avatarUrl, String fallbackName, ThemeData theme) {
+  Widget _buildAvatarSection(
+    String? avatarUrl,
+    String fallbackName,
+    ThemeData theme, {
+    bool editMode = false,
+  }) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: RengaColors.accent.withValues(alpha: 0.1),
-            border: Border.all(
-              color: RengaColors.accent.withValues(alpha: 0.3),
-              width: 2,
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: RengaColors.accent.withValues(alpha: 0.1),
+                border: Border.all(
+                  color: RengaColors.accent.withValues(alpha: 0.3),
+                  width: 2,
+                ),
+              ),
+              child: (_selectedAvatarPath != null && editMode)
+                  ? ClipOval(
+                      child: Image.file(
+                        File(_selectedAvatarPath!),
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : (avatarUrl != null && avatarUrl.isNotEmpty
+                      ? ClipOval(
+                          child: Image.network(
+                            avatarUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildInitialAvatar(fallbackName, theme);
+                            },
+                          ),
+                        )
+                      : _buildInitialAvatar(fallbackName, theme)),
+            ),
+            if (editMode)
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: FloatingActionButton.small(
+                  onPressed: _handlePickAvatar,
+                  backgroundColor: RengaColors.accent,
+                  child: const Icon(Icons.camera_alt),
+                ),
+              ),
+          ],
+        ),
+        if (editMode) const SizedBox(height: 12),
+        if (editMode)
+          Text(
+            l10n.profileAvatarChangeButton,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          child: avatarUrl != null && avatarUrl.isNotEmpty
-              ? ClipOval(
-                  child: Image.network(
-                    avatarUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildInitialAvatar(fallbackName, theme);
-                    },
-                  ),
-                )
-              : _buildInitialAvatar(fallbackName, theme),
-        ),
       ],
     );
   }
