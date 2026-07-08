@@ -199,5 +199,24 @@
   "settingsLanguageLabel": "表示言語",
   "settingsLanguageSystem": "端末設定に従う",
   "settingsLanguageEnglish": "English",
-  "settingsLanguageJapanese": "日本語 (Japanese)"
+  "settingsLanguageJapanese": "日本語 (Japanese)",
+
+  "settingsProfileRowSubtitle": "アバター、表示名、自己紹介など",
+  "settingsPasswordChangeLabel": "パスワード変更",
+  "settingsDeleteAccountLabel": "アカウント削除",
+
+  "passwordChangeNewLabel": "新しいパスワード",
+  "passwordChangeConfirmLabel": "新しいパスワード（確認）",
+  "passwordChangeMismatchError": "パスワードが一致しません",
+  "passwordChangeTooShortError": "パスワードは6文字以上で入力してください",
+  "passwordChangeSubmitButton": "パスワードを変更",
+  "passwordChangeSuccess": "パスワードを変更しました",
+  "passwordChangeError": "パスワードの変更に失敗しました: {error}",
+
+  "deleteAccountWarningTitle": "この操作は取り消せません",
+  "deleteAccountWarningBody": "アカウントを削除すると、投稿・フォロー・TP残高などすべてのデータが完全に失われます。この操作は元に戻せません。",
+  "deleteAccountConfirmInstructions": "確認のためユーザー名「{username}」を入力してください",
+  "deleteAccountUsernameFieldLabel": "ユーザー名",
+  "deleteAccountButton": "アカウントを削除する",
+  "deleteAccountError": "アカウントの削除に失敗しました: {error}"
 }

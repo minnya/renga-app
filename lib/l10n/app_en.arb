@@ -422,5 +422,45 @@
   "settingsLanguageLabel": "Display language",
   "settingsLanguageSystem": "System default",
   "settingsLanguageEnglish": "English",
-  "settingsLanguageJapanese": "日本語 (Japanese)"
+  "settingsLanguageJapanese": "日本語 (Japanese)",
+
+  "settingsProfileRowSubtitle": "Avatar, display name, bio, and more",
+  "settingsPasswordChangeLabel": "Change password",
+  "settingsDeleteAccountLabel": "Delete account",
+
+  "passwordChangeNewLabel": "New password",
+  "passwordChangeConfirmLabel": "Confirm new password",
+  "passwordChangeMismatchError": "Passwords do not match",
+  "passwordChangeTooShortError": "Password must be at least 6 characters",
+  "passwordChangeSubmitButton": "Update password",
+  "passwordChangeSuccess": "Password updated",
+  "passwordChangeError": "Failed to update password: {error}",
+  "@passwordChangeError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+
+  "deleteAccountWarningTitle": "This action cannot be undone",
+  "deleteAccountWarningBody": "Deleting your account permanently removes all your posts, follows, TP balance, and other data. This cannot be reversed.",
+  "deleteAccountConfirmInstructions": "Type your username \"{username}\" below to confirm",
+  "@deleteAccountConfirmInstructions": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteAccountUsernameFieldLabel": "Username",
+  "deleteAccountButton": "Delete my account",
+  "deleteAccountError": "Failed to delete account: {error}",
+  "@deleteAccountError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }
