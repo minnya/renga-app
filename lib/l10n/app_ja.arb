@@ -44,6 +44,10 @@
   "feedCommentTimeDaysAgo": "{days}日前",
   "feedLikeError": "いいねの更新に失敗しました: {error}",
   "feedRepostError": "リポストの更新に失敗しました: {error}",
+  "feedRepostSheetRepostOption": "リポスト",
+  "feedRepostSheetUndoRepostOption": "リポストを取り消す",
+  "feedRepostSheetQuoteOption": "引用リポスト",
+  "composeQuotedPostSectionLabel": "引用元",
 
   "authEmailLabel": "メールアドレス",
   "authPasswordLabel": "パスワード",
@@ -67,6 +71,14 @@
   "signupFailedMessage": "サインアップに失敗しました: {error}",
   "signupGoToLogin": "ログインはこちら",
   "signupGoogleButton": "Googleでサインアップ",
+
+  "completeProfileAppBarTitle": "プロフィール設定",
+  "completeProfileDescription": "あと少しです。ユーザー名を設定して登録を完了してください。",
+  "completeProfileUsernameLabel": "ユーザー名",
+  "completeProfileUsernameHelper": "投稿やプロフィールに表示されます",
+  "completeProfileUsernameRequired": "ユーザー名を入力してください",
+  "completeProfileSubmitButton": "続ける",
+  "completeProfileFailedMessage": "プロフィールの保存に失敗しました: {error}",
 
   "quizOnboardingTitle": "オンボーディングクイズ",
   "quizDailyTitle": "デイリークイズ",

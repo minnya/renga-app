@@ -5,7 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/auth_state.dart';
 import '../core/firebase_client.dart';
+import '../features/auth/complete_profile_page.dart';
 import '../features/auth/login_page.dart';
+import '../features/auth/profile_completion_provider.dart';
 import '../features/auth/signup_page.dart';
 import '../features/battle/battle_detail_page.dart';
 import '../features/battle/battle_list_page.dart';
@@ -30,6 +32,10 @@ import '../features/settings/settings_page.dart';
 import 'main_shell.dart';
 
 const _publicPaths = {'/login', '/signup', '/debug'};
+
+/// design/system.md 3章「Auth」: Googleサインイン新規登録直後で`profiles.profile_completed`が
+/// falseのユーザーは、このパス以外へのアクセス時に`/complete-profile`へ強制リダイレクトされる。
+const _profileCompletionExemptPaths = {'/login', '/signup', '/debug', '/complete-profile'};
 
 /// design/product.md 4章「ページ遷移のアニメーション」。Instagram/X標準相当の
 /// フェード＋わずかな下からのスライドで画面遷移する共通トランジション。
@@ -58,12 +64,15 @@ CustomTransitionPage<void> _fadeSlidePage(BuildContext context, GoRouterState st
 /// [Splash] → [Onboarding: 3問クイズ] → [Home Tab Bar] の必須フローに対応するため、
 /// この集合に含まれないパスはオンボーディングクイズ未完了時に `/onboarding-quiz` へ
 /// 強制リダイレクトされる。
-const _onboardingExemptPaths = {'/login', '/signup', '/debug', '/onboarding-quiz'};
+const _onboardingExemptPaths = {'/login', '/signup', '/debug', '/onboarding-quiz', '/complete-profile'};
 
 /// アプリ全体のルーティング定義。
 ///
 /// 未ログイン時は `/login` `/signup` `/debug` 以外へのアクセスを `/login` へリダイレクトする。
-/// ログイン済みでもオンボーディングクイズ未完了の場合は `/onboarding-quiz` 以外へのアクセスを
+/// ログイン済みでもGoogleサインイン新規登録直後等でプロフィール未完了
+/// （`profiles.profile_completed = false`）の場合は `/complete-profile` 以外へのアクセスを
+/// `/complete-profile` へリダイレクトする。
+/// さらにオンボーディングクイズ未完了の場合は `/onboarding-quiz` 以外へのアクセスを
 /// `/onboarding-quiz` へリダイレクトする。
 final routerProvider = Provider<GoRouter>((ref) {
   final authStateAsync = ref.watch(authStateChangesProvider);
@@ -87,6 +96,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (!isLoggedIn && !isPublicPath) return '/login';
       if (isLoggedIn && (state.matchedLocation == '/login' || state.matchedLocation == '/signup')) {
         return '/';
+      }
+
+      // design/system.md 3章「Auth」: Googleサインイン新規登録直後でプロフィール未完了
+      // （`profile_completed = false`）の場合、`/complete-profile` 以外へのアクセスを
+      // 強制的にリダイレクトする。オンボーディングクイズより先に完了させる想定のため、
+      // オンボーディング判定より前に評価する。
+      if (isLoggedIn && !_profileCompletionExemptPaths.contains(state.matchedLocation)) {
+        final profileCompletedAsync = ref.read(profileCompletedProvider);
+        // 判定中は現状維持。完了次第 _AuthRefreshListenable 経由でredirectが再評価される。
+        if (profileCompletedAsync.isLoading) return null;
+        // dataでfalseの場合のみ強制遷移。error時やtrueの場合は通常の遷移を継続する
+        // (通信エラーでユーザーがロックされてしまうのを避けるためfail-openとする)。
+        final isProfileCompleted = profileCompletedAsync.value ?? true;
+        if (!isProfileCompleted) return '/complete-profile';
       }
 
       // design/product.md 4章: ログイン済みかつオンボーディングクイズ未完了の場合、
@@ -119,7 +142,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             return const _RouterLoadingView();
           }
           if (ref.watch(currentUserProvider) != null &&
-              ref.watch(hasCompletedOnboardingProvider).isLoading) {
+              (ref.watch(profileCompletedProvider).isLoading ||
+                  ref.watch(hasCompletedOnboardingProvider).isLoading)) {
             return const _RouterLoadingView();
           }
           return MainShell(navigationShell: navigationShell);
@@ -191,6 +215,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/signup',
         pageBuilder: (context, state) => _fadeSlidePage(context, state, const SignupPage()),
+      ),
+      // design/system.md 3章「Auth」: Googleサインイン新規登録直後のプロフィール未完了
+      // ユーザー専用の画面。上記`redirect`により強制的に遷移させる。
+      GoRoute(
+        path: '/complete-profile',
+        pageBuilder: (context, state) => _fadeSlidePage(context, state, const CompleteProfilePage()),
       ),
       // design/product.md 3.12節「投稿詳細（スレッド表示）」。投稿を親としてコメントを
       // 下に並べるX/Instagram風の詳細画面。
@@ -272,16 +302,23 @@ class _AuthRefreshListenable extends ChangeNotifier {
     _onboardingSubscription = _ref.listen(hasCompletedOnboardingProvider, (previous, next) {
       notifyListeners();
     });
+    // design/system.md 3章「Auth」: プロフィール完了時にもredirectを再評価し、
+    // `/complete-profile` からホームへ自動的に遷移させる。
+    _profileCompletionSubscription = _ref.listen(profileCompletedProvider, (previous, next) {
+      notifyListeners();
+    });
   }
 
   final Ref _ref;
   late final ProviderSubscription<AsyncValue<AuthState>> _authSubscription;
   late final ProviderSubscription<AsyncValue<bool>> _onboardingSubscription;
+  late final ProviderSubscription<AsyncValue<bool>> _profileCompletionSubscription;
 
   @override
   void dispose() {
     _authSubscription.close();
     _onboardingSubscription.close();
+    _profileCompletionSubscription.close();
     super.dispose();
   }
 }

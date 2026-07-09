@@ -110,6 +110,10 @@
       }
     }
   },
+  "feedRepostSheetRepostOption": "Repost",
+  "feedRepostSheetUndoRepostOption": "Undo repost",
+  "feedRepostSheetQuoteOption": "Quote",
+  "composeQuotedPostSectionLabel": "Quoting",
 
   "authEmailLabel": "Email",
   "authPasswordLabel": "Password",
@@ -147,6 +151,21 @@
   },
   "signupGoToLogin": "Already have an account? Log in",
   "signupGoogleButton": "Sign up with Google",
+
+  "completeProfileAppBarTitle": "Complete your profile",
+  "completeProfileDescription": "You're almost done. Choose a username to finish setting up your account.",
+  "completeProfileUsernameLabel": "Username",
+  "completeProfileUsernameHelper": "This will be shown on your posts and profile",
+  "completeProfileUsernameRequired": "Please enter a username",
+  "completeProfileSubmitButton": "Continue",
+  "completeProfileFailedMessage": "Failed to save profile: {error}",
+  "@completeProfileFailedMessage": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
 
   "quizOnboardingTitle": "Onboarding Quiz",
   "quizDailyTitle": "Daily Quiz",
