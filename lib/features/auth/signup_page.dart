@@ -9,6 +9,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../l10n/gen/app_localizations.dart';
 import 'auth_controller.dart';
 import 'google_signin_button.dart';
+import 'profile_setup_form.dart';
 
 /// メールアドレス/パスワードまたはGoogleでの新規登録画面。
 class SignupPage extends ConsumerStatefulWidget {
@@ -173,13 +174,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     validator: _validateConfirmPassword,
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.signupUsernameLabel,
-                      helperText: l10n.signupUsernameHelper,
-                    ),
-                  ),
+                  ProfileSetupUsernameField(controller: _usernameController),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: isLoading ? null : _submit,
