@@ -66,6 +66,7 @@
   "signupSubmitButton": "サインアップ",
   "signupFailedMessage": "サインアップに失敗しました: {error}",
   "signupGoToLogin": "ログインはこちら",
+  "signupGoogleButton": "Googleでサインアップ",
 
   "quizOnboardingTitle": "オンボーディングクイズ",
   "quizDailyTitle": "デイリークイズ",

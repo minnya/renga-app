@@ -146,6 +146,7 @@
     }
   },
   "signupGoToLogin": "Already have an account? Log in",
+  "signupGoogleButton": "Sign up with Google",
 
   "quizOnboardingTitle": "Onboarding Quiz",
   "quizDailyTitle": "Daily Quiz",

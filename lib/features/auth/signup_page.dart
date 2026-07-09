@@ -1,11 +1,16 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../l10n/gen/app_localizations.dart';
 import 'auth_controller.dart';
+import 'google_signin_button.dart';
 
-/// メールアドレス/パスワードでの新規登録画面。
+/// メールアドレス/パスワードまたはGoogleでの新規登録画面。
 class SignupPage extends ConsumerStatefulWidget {
   const SignupPage({super.key});
 
@@ -19,6 +24,37 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _usernameController = TextEditingController();
+  StreamSubscription<GoogleSignInAuthenticationEvent>? _googleAuthSubscription;
+  bool _googleSignInReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initGoogleSignIn();
+  }
+
+  /// login_page.dartと同様、Web版はGIS公式ボタンの`authenticationEvents`を購読して
+  /// Supabase Authと連携する（`signInWithIdToken`は未登録メールなら新規アカウントを作成する）。
+  Future<void> _initGoogleSignIn() async {
+    try {
+      await ref.read(authControllerProvider.notifier).initializeGoogleSignIn();
+      if (kIsWeb) {
+        _googleAuthSubscription = GoogleSignIn.instance.authenticationEvents.listen((
+          event,
+        ) async {
+          await ref.read(authControllerProvider.notifier).handleGoogleAuthenticationEvent(event);
+          if (!mounted) return;
+          final state = ref.read(authControllerProvider);
+          if (!state.hasError) {
+            context.go('/');
+          }
+        });
+      }
+      if (mounted) setState(() => _googleSignInReady = true);
+    } catch (_) {
+      // GOOGLE_OAUTH_CLIENT_ID未設定時などはボタンを出さないだけに留める。
+    }
+  }
 
   @override
   void dispose() {
@@ -26,6 +62,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _usernameController.dispose();
+    _googleAuthSubscription?.cancel();
     super.dispose();
   }
 
@@ -71,6 +108,15 @@ class _SignupPageState extends ConsumerState<SignupPage> {
           password: _passwordController.text,
           username: username.isEmpty ? null : username,
         );
+    if (!mounted) return;
+    final state = ref.read(authControllerProvider);
+    if (!state.hasError) {
+      context.go('/');
+    }
+  }
+
+  Future<void> _submitWithGoogle() async {
+    await ref.read(authControllerProvider.notifier).signInWithGoogle();
     if (!mounted) return;
     final state = ref.read(authControllerProvider);
     if (!state.hasError) {
@@ -145,6 +191,30 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                           )
                         : Text(l10n.signupSubmitButton),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(l10n.loginOrDivider),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (!_googleSignInReady)
+                    const SizedBox.shrink()
+                  else if (kIsWeb)
+                    Center(
+                      child: SizedBox(width: 300, height: 44, child: buildGoogleSignInButton()),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: isLoading ? null : _submitWithGoogle,
+                      icon: const Icon(Icons.g_mobiledata),
+                      label: Text(l10n.signupGoogleButton),
+                    ),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: isLoading ? null : () => context.go('/login'),
