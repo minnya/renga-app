@@ -329,7 +329,7 @@ Deno.serve(async (req: Request) => {
       console.error('generate_quiz_batch: solver call failed', runId, i);
       await markRunFailed();
       return new Response(
-        JSON.stringify({ generated: true, approved: false, run_id: runId }),
+        JSON.stringify({ generated: true, approved: false, run_id: runId, stage: `solver_${i}_call`, debug_error: lastGeminiError }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
@@ -341,7 +341,14 @@ Deno.serve(async (req: Request) => {
       console.error('generate_quiz_batch: failed to parse solver response', error, solverRaw);
       await markRunFailed();
       return new Response(
-        JSON.stringify({ generated: true, approved: false, run_id: runId }),
+        JSON.stringify({
+          generated: true,
+          approved: false,
+          run_id: runId,
+          stage: `solver_${i}_parse`,
+          debug_error: String(error),
+          debug_raw: solverRaw.slice(0, 500),
+        }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
@@ -369,7 +376,7 @@ Deno.serve(async (req: Request) => {
     console.error('generate_quiz_batch: validator call failed', runId);
     await markRunFailed();
     return new Response(
-      JSON.stringify({ generated: true, approved: false, run_id: runId }),
+      JSON.stringify({ generated: true, approved: false, run_id: runId, stage: 'validator_call', debug_error: lastGeminiError }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
   }
@@ -386,7 +393,14 @@ Deno.serve(async (req: Request) => {
     console.error('generate_quiz_batch: failed to parse validator response', error, validatorRaw);
     await markRunFailed();
     return new Response(
-      JSON.stringify({ generated: true, approved: false, run_id: runId }),
+      JSON.stringify({
+        generated: true,
+        approved: false,
+        run_id: runId,
+        stage: 'validator_parse',
+        debug_error: String(error),
+        debug_raw: validatorRaw.slice(0, 500),
+      }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
   }
