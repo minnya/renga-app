@@ -27,20 +27,22 @@ class VideoUploadController {
 
   /// 動画アップロードフロー一式を実行する。
   ///
-  /// [postId] か [commentId] のどちらか一方を指定する（`videos`テーブルの
-  /// `videos_post_or_comment_check`制約に対応。design/system.md 1章）。
+  /// [postId] / [commentId] / [dmMessageId] のいずれか1つのみを指定する（`videos`テーブルの
+  /// `videos_post_or_comment_or_dm_check`制約に対応。
+  /// `supabase/migrations/20260709100000_add_direct_messages.sql`）。
   /// [onProgress] にはPUTアップロードの進捗（0.0〜1.0の概算、バイト数ベース）を通知する。
   /// 戻り値は作成された `videos.id`。
   Future<String> uploadVideo({
     required XFile video,
     String? postId,
     String? commentId,
+    String? dmMessageId,
     required String uploaderId,
     void Function(double progress)? onProgress,
   }) async {
     assert(
-      (postId == null) != (commentId == null),
-      'postId と commentId のどちらか一方のみを指定してください',
+      [postId, commentId, dmMessageId].whereType<String>().length == 1,
+      'postId・commentId・dmMessageIdのうちいずれか1つのみを指定してください',
     );
     // 1. Edge Function経由でMux Direct Upload URLを発行してもらう。
     //    Mux API Token はクライアントに一切露出させず、Edge Function側でのみ保持する
@@ -61,6 +63,7 @@ class VideoUploadController {
         .insert({
           if (postId != null) 'post_id': postId,
           if (commentId != null) 'comment_id': commentId,
+          if (dmMessageId != null) 'dm_message_id': dmMessageId,
           'uploader_id': uploaderId,
           'mux_upload_id': muxUploadId,
           'status': 'uploading',

@@ -5,14 +5,15 @@ import 'package:go_router/go_router.dart';
 /// 「ボトムナビゲーション＋タブ」構造。各タブ(Feed/Discover/Battle/Profile)は
 /// `StatefulShellRoute.indexedStack`で独立したナビゲーションスタックとスクロール位置を保持する。
 ///
-/// Composeはタブとして状態を保持せず、X/Instagramの投稿ボタンと同様に中央から
-/// 常に新規のフルスクリーン画面として`push`する（[navigationShell]のブランチ切替は行わない）。
+/// Messagesはタブとして状態を保持せず、中央のボタンから常に新規のフルスクリーン画面として
+/// `push`する（[navigationShell]のブランチ切替は行わない）。Composeはフィード画面上部の
+/// ボタンから開く。
 class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
-  static const _composeTabIndex = 2;
+  static const _messagesTabIndex = 2;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +25,7 @@ class MainShell extends StatelessWidget {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Feed'),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Discover'),
-          BottomNavigationBarItem(icon: Icon(Icons.add_box_outlined), label: 'Compose'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Messages'),
           BottomNavigationBarItem(icon: Icon(Icons.bolt_outlined), activeIcon: Icon(Icons.bolt), label: 'Battle'),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
         ],
@@ -32,16 +33,16 @@ class MainShell extends StatelessWidget {
     );
   }
 
-  /// ボトムナビゲーションのインデックス(5項目、中央がCompose)と、
-  /// [StatefulShellRoute]のブランチインデックス(4ブランチ、Composeを含まない)の対応付け。
-  int _currentIndexFor(int branchIndex) => branchIndex < _composeTabIndex ? branchIndex : branchIndex + 1;
+  /// ボトムナビゲーションのインデックス(5項目、中央がMessages)と、
+  /// [StatefulShellRoute]のブランチインデックス(4ブランチ、Messagesを含まない)の対応付け。
+  int _currentIndexFor(int branchIndex) => branchIndex < _messagesTabIndex ? branchIndex : branchIndex + 1;
 
   void _onTap(BuildContext context, int tappedIndex) {
-    if (tappedIndex == _composeTabIndex) {
-      context.push('/compose');
+    if (tappedIndex == _messagesTabIndex) {
+      context.push('/messages');
       return;
     }
-    final branchIndex = tappedIndex < _composeTabIndex ? tappedIndex : tappedIndex - 1;
+    final branchIndex = tappedIndex < _messagesTabIndex ? tappedIndex : tappedIndex - 1;
     navigationShell.goBranch(branchIndex, initialLocation: branchIndex == navigationShell.currentIndex);
   }
 }

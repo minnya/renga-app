@@ -2,9 +2,11 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/auth_state.dart';
 import '../../core/supabase_client.dart';
+import '../feed/video_upload_controller.dart';
 import 'dm_conversation.dart';
 import 'dm_message.dart';
 
@@ -166,6 +168,40 @@ class MessagesController {
       'media_type': 'image',
       'media_url': imageUrl,
     });
+
+    ref.invalidate(conversationMessagesProvider(conversationId));
+    ref.invalidate(conversationListProvider);
+  }
+
+  /// design/system.md 5.1節のMux Direct Uploadフローと同じパターンで、DMへ動画を送信する。
+  /// 先に`media_type='video'`の`dm_messages`行を作成し、その`id`を`videos.dm_message_id`に
+  /// 紐づけてアップロードする。トランスコード完了（`status='ready'`）は
+  /// `sync_dm_message_video_ready`トリガーが`dm_messages.mux_playback_id`へ反映する
+  /// （`supabase/migrations/20260709120000_sync_dm_message_video_ready.sql`）。
+  Future<void> sendVideoMessage({
+    required String conversationId,
+    required XFile video,
+  }) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    final row = await supabase
+        .from('dm_messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': user.id,
+          'body': '',
+          'media_type': 'video',
+        })
+        .select('id')
+        .single();
+    final dmMessageId = row['id'] as String;
+
+    await VideoUploadController().uploadVideo(
+      video: video,
+      dmMessageId: dmMessageId,
+      uploaderId: user.id,
+    );
 
     ref.invalidate(conversationMessagesProvider(conversationId));
     ref.invalidate(conversationListProvider);

@@ -146,8 +146,8 @@ class IntellectBadge extends StatelessWidget {
       child: Chip(
         label: Text(intellectBadgeLabel(tier)),
         labelStyle: TextStyle(fontSize: 11, color: color.shade900),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 2),
-        padding: EdgeInsets.zero,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        padding: const EdgeInsets.symmetric(vertical: 0),
         backgroundColor: color.withValues(alpha: 0.15),
         side: BorderSide(color: color),
         visualDensity: VisualDensity.compact,

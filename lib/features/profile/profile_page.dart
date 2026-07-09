@@ -6,6 +6,8 @@ import '../../app/theme.dart';
 import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../shared/info_bottom_sheet.dart';
+import '../../shared/iq_format.dart';
+import '../feed/fullscreen_media_viewer.dart';
 import '../feed/intellect_badge.dart';
 import '../messages/messages_controller.dart';
 import 'profile_controller.dart';
@@ -130,6 +132,7 @@ class _SignedInProfileView extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _buildAvatarSection(
+                  context,
                   avatarUrl,
                   displayName.isNotEmpty ? displayName : username,
                   theme,
@@ -251,29 +254,39 @@ class _SignedInProfileView extends ConsumerWidget {
     );
   }
 
-  Widget _buildAvatarSection(String? avatarUrl, String fallbackName, ThemeData theme) {
+  Widget _buildAvatarSection(BuildContext context, String? avatarUrl, String fallbackName, ThemeData theme) {
+    final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
     return Column(
       children: [
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: RengaColors.accent.withValues(alpha: 0.1),
-            border: Border.all(
-              color: RengaColors.accent.withValues(alpha: 0.3),
-              width: 2,
+        GestureDetector(
+          onTap: hasAvatar
+              ? () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => FullscreenMediaViewer(imageUrls: [avatarUrl]),
+                    ),
+                  )
+              : null,
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: RengaColors.accent.withValues(alpha: 0.1),
+              border: Border.all(
+                color: RengaColors.accent.withValues(alpha: 0.3),
+                width: 2,
+              ),
             ),
+            child: hasAvatar
+                ? ClipOval(
+                    child: Image.network(
+                      avatarUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => _buildInitialAvatar(fallbackName, theme),
+                    ),
+                  )
+                : _buildInitialAvatar(fallbackName, theme),
           ),
-          child: (avatarUrl != null && avatarUrl.isNotEmpty)
-              ? ClipOval(
-                  child: Image.network(
-                    avatarUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => _buildInitialAvatar(fallbackName, theme),
-                  ),
-                )
-              : _buildInitialAvatar(fallbackName, theme),
         ),
       ],
     );
@@ -330,7 +343,7 @@ class _SignedInProfileView extends ConsumerWidget {
         ),
         _buildStatItem(
           label: l10n.profileScoreIntellect,
-          score: _formatScoreOutOfTen(intellectPercentile),
+          score: _formatIq(intellectPercentile),
           percentile: '$intellectPercentile%',
           theme: theme,
           accentColor: RengaColors.intellect,
@@ -339,8 +352,9 @@ class _SignedInProfileView extends ConsumerWidget {
             icon: Icons.psychology,
             color: RengaColors.intellect,
             title: l10n.profileScoreIntellect,
-            description: 'Intellectは投稿・クイズ正答などから算出される知的専門性スコアです。'
-                '上位パーセンタイルに応じてバッジが付与されます（design/product.md 3.3節）。',
+            description: 'Intellectは投稿・クイズ正答などから算出される知的専門性スコアをIQスケール'
+                '（平均100・標準偏差15）に換算した数値です。上位パーセンタイルに応じてバッジが'
+                '付与されます（design/product.md 3.3節）。',
           ),
         ),
       ],
@@ -351,6 +365,13 @@ class _SignedInProfileView extends ConsumerWidget {
   String _formatScoreOutOfTen(dynamic percentile) {
     final value = percentile is num ? percentile : num.tryParse('$percentile') ?? 0;
     return ((value / 100) * 10).toStringAsFixed(1);
+  }
+
+  /// Intellectパーセンタイルを[intellectIqScore]でIQスケールに変換した表示文字列。
+  String _formatIq(dynamic percentile) {
+    final value = percentile is num ? percentile : num.tryParse('$percentile');
+    final iq = intellectIqScore(value);
+    return iq?.toString() ?? '--';
   }
 
   Widget _buildStatItem({
@@ -415,6 +436,8 @@ class _SignedInProfileView extends ConsumerWidget {
         child: Chip(
           label: Text('${tpBalanceNum.toStringAsFixed(0)} TP'),
           labelStyle: theme.textTheme.bodySmall,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+          padding: const EdgeInsets.symmetric(vertical: 0),
           backgroundColor: RengaColors.accent.withValues(alpha: 0.1),
           side: BorderSide(color: RengaColors.accent.withValues(alpha: 0.3)),
           visualDensity: VisualDensity.compact,
@@ -427,6 +450,8 @@ class _SignedInProfileView extends ConsumerWidget {
         Chip(
           label: Text('${l10n.profileStrikeCountLabel}: $strikeCount'),
           labelStyle: theme.textTheme.bodySmall,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+          padding: const EdgeInsets.symmetric(vertical: 0),
           backgroundColor: Colors.red.withValues(alpha: 0.1),
           side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
           visualDensity: VisualDensity.compact,

@@ -11,6 +11,7 @@ import '../../app/theme.dart';
 import '../../core/auth_state.dart';
 import '../../core/supabase_client.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../feed/fullscreen_media_viewer.dart';
 import '../feed/video_player_widget.dart';
 import 'dm_message.dart';
 import 'messages_controller.dart';
@@ -118,6 +119,27 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
             conversationId: widget.conversationId,
             bytes: bytes,
             fileExt: fileExt,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.messagesConversationSendError('$e'))),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _handlePickAndSendVideo() async {
+    final picked = await ImagePicker().pickVideo(source: ImageSource.gallery);
+    if (picked == null) return;
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    setState(() => _sending = true);
+    try {
+      await ref.read(messagesControllerProvider).sendVideoMessage(
+            conversationId: widget.conversationId,
+            video: picked,
           );
     } catch (e) {
       if (!mounted) return;
@@ -272,6 +294,10 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                     onPressed: _sending ? null : _handlePickAndSendImage,
                     icon: const Icon(Icons.image_outlined),
                   ),
+                  IconButton(
+                    onPressed: _sending ? null : _handlePickAndSendVideo,
+                    icon: const Icon(Icons.videocam_outlined),
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _inputController,
@@ -323,20 +349,57 @@ class _MessageBubble extends StatelessWidget {
 
     Widget content;
     if (message.isImage && message.mediaUrl != null) {
-      content = ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          message.mediaUrl!,
-          width: 200,
-          fit: BoxFit.cover,
+      content = GestureDetector(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => FullscreenMediaViewer(imageUrls: [message.mediaUrl!]),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            message.mediaUrl!,
+            width: 200,
+            fit: BoxFit.cover,
+          ),
         ),
       );
     } else if (message.isVideo && message.muxPlaybackId != null) {
-      content = ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          width: 240,
-          child: MuxVideoPlayerWidget(playbackId: message.muxPlaybackId!, isPreview: true),
+      content = GestureDetector(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => FullscreenMediaViewer(videoPlaybackId: message.muxPlaybackId!),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 240,
+            child: MuxVideoPlayerWidget(playbackId: message.muxPlaybackId!, isPreview: true),
+          ),
+        ),
+      );
+    } else if (message.isVideo) {
+      // アップロード直後・トランスコード処理中（design/system.md 5.1節のpending/uploading/processing）。
+      content = Container(
+        width: 200,
+        height: 120,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.center,
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(height: 8),
+            Text('動画を処理中…', style: TextStyle(fontSize: 12)),
+          ],
         ),
       );
     } else {

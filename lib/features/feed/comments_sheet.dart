@@ -10,6 +10,7 @@ import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import 'comment.dart';
 import 'feed_controller.dart';
+import 'fullscreen_media_viewer.dart';
 import 'video_upload_controller.dart';
 
 /// design/product.md 3.12節「基本エンゲージメント機能」のコメント機能。
@@ -194,7 +195,7 @@ class _CommentsBottomSheetState extends ConsumerState<CommentsBottomSheet> {
     );
   }
 
-  Widget _buildAttachments(Comment comment) {
+  Widget _buildAttachments(BuildContext context, Comment comment) {
     final urls = comment.mediaUrls;
     if (urls == null || urls.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -206,13 +207,20 @@ class _CommentsBottomSheetState extends ConsumerState<CommentsBottomSheet> {
           itemCount: urls.length,
           separatorBuilder: (context, index) => const SizedBox(width: 6),
           itemBuilder: (context, index) {
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                urls[index],
-                width: 72,
-                height: 72,
-                fit: BoxFit.cover,
+            return GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FullscreenMediaViewer(imageUrls: urls, initialImageIndex: index),
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  urls[index],
+                  width: 72,
+                  height: 72,
+                  fit: BoxFit.cover,
+                ),
               ),
             );
           },
@@ -262,7 +270,7 @@ class _CommentsBottomSheetState extends ConsumerState<CommentsBottomSheet> {
                 ),
                 const SizedBox(height: 4),
                 if (comment.body.isNotEmpty) Text(comment.body, style: theme.textTheme.bodyMedium),
-                _buildAttachments(comment),
+                _buildAttachments(context, comment),
                 if (!isReply)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),

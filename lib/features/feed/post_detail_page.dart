@@ -8,6 +8,7 @@ import '../../shared/time_format.dart';
 import 'comment.dart';
 import 'feed_controller.dart';
 import 'feed_page.dart';
+import 'fullscreen_media_viewer.dart';
 
 /// design/product.md 3.12節「投稿詳細（スレッド表示）」。
 /// X(Twitter)同様、投稿を親としてその下にコメント（返信）一覧を表示する画面。
@@ -229,6 +230,32 @@ class _CommentRow extends StatelessWidget {
                 if (comment.body.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(comment.body, style: theme.textTheme.bodyMedium),
+                ],
+                if (comment.mediaUrls != null && comment.mediaUrls!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: 72,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: comment.mediaUrls!.length,
+                      separatorBuilder: (context, index) => const SizedBox(width: 6),
+                      itemBuilder: (context, index) {
+                        final urls = comment.mediaUrls!;
+                        return GestureDetector(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  FullscreenMediaViewer(imageUrls: urls, initialImageIndex: index),
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(urls[index], width: 72, height: 72, fit: BoxFit.cover),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ],
             ),

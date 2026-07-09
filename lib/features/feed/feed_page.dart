@@ -48,9 +48,9 @@ class FeedPage extends ConsumerWidget {
         actions: [
           if (currentUser != null) ...[
             IconButton(
-              tooltip: 'メッセージ',
-              onPressed: () => context.push('/messages'),
-              icon: const Icon(Icons.chat_bubble_outline),
+              tooltip: '投稿',
+              onPressed: () => context.push('/compose'),
+              icon: const Icon(Icons.add_box_outlined),
             ),
             IconButton(
               tooltip: '通知',
