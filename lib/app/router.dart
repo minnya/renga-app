@@ -13,6 +13,8 @@ import '../features/debug/connection_check_page.dart';
 import '../features/discover/discover_page.dart';
 import '../features/feed/compose_page.dart';
 import '../features/feed/feed_page.dart';
+import '../features/messages/conversation_page.dart';
+import '../features/messages/messages_list_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/quiz/quiz_controller.dart';
@@ -144,7 +146,24 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
-            routes: [GoRoute(path: '/profile', builder: (context, state) => const ProfilePage())],
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) => const ProfilePage(),
+                routes: [
+                  // design/system.md 15章「ダイレクトメッセージ（DM）」。他ユーザーの
+                  // プロフィールをID指定で表示し、DM開始ボタンを提供する導線。
+                  GoRoute(
+                    path: ':userId',
+                    pageBuilder: (context, state) => _fadeSlidePage(
+                      context,
+                      state,
+                      ProfilePage(userId: state.pathParameters['userId']),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -163,6 +182,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         pageBuilder: (context, state) => _fadeSlidePage(context, state, const NotificationsPage()),
+      ),
+      // design/system.md 15章「ダイレクトメッセージ（DM）」。DM一覧・会話詳細画面。
+      GoRoute(
+        path: '/messages',
+        pageBuilder: (context, state) => _fadeSlidePage(context, state, const MessagesListPage()),
+        routes: [
+          GoRoute(
+            path: ':conversationId',
+            pageBuilder: (context, state) => _fadeSlidePage(
+              context,
+              state,
+              ConversationPage(conversationId: state.pathParameters['conversationId']!),
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: '/settings',

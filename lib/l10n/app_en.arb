@@ -7,6 +7,8 @@
 
   "feedAppBarTitle": "Renga — Feed",
   "feedDailyQuizTooltip": "Daily Quiz",
+  "feedDailyQuizCompletedTooltip": "Already completed today",
+  "feedDailyQuizCooldownLabel": "Next in",
   "feedFilterAll": "All Users",
   "feedFilterTop25": "Top 25%",
   "feedFilterTop5": "Top 5%",
@@ -205,6 +207,18 @@
     }
   },
   "quizBackToFeed": "Back to Feed",
+  "quizFeedbackCorrect": "Correct!",
+  "quizFeedbackIncorrect": "Incorrect",
+  "quizFeedbackCorrectAnswer": "Correct answer: {answer}",
+  "@quizFeedbackCorrectAnswer": {
+    "placeholders": {
+      "answer": {
+        "type": "String"
+      }
+    }
+  },
+  "quizNextButton": "Next",
+  "quizSeeResultButton": "See Results",
 
   "profileAppBarTitle": "Profile",
   "profileSignedOutMessage": "Please log in to view your profile",
@@ -511,6 +525,44 @@
   "deleteAccountButton": "Delete my account",
   "deleteAccountError": "Failed to delete account: {error}",
   "@deleteAccountError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+
+  "messagesListAppBarTitle": "Messages",
+  "messagesListEmpty": "No messages yet",
+  "messagesListLoadError": "Failed to load conversations: {error}",
+  "@messagesListLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "messagesListDeleteAction": "Delete",
+  "messagesListBlockAction": "Block",
+  "messagesListUnblockAction": "Unblock",
+  "messagesListUnknownUser": "Unknown user",
+  "messagesConversationInputHint": "Message",
+  "messagesConversationSendError": "Failed to send message: {error}",
+  "@messagesConversationSendError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "messagesConversationBlockedUser": "This user is blocked",
+  "messagesConversationBlockConfirmTitle": "Block this user?",
+  "messagesConversationBlockConfirmMessage": "Blocking prevents both of you from sending or receiving messages.",
+  "messagesConversationDeleteConfirmTitle": "Delete this conversation?",
+  "messagesConversationDeleteConfirmMessage": "This only removes the conversation from your list. The other user is not affected.",
+  "messagesProfileMessageButton": "Message",
+  "messagesStartConversationError": "Failed to start conversation: {error}",
+  "@messagesStartConversationError": {
     "placeholders": {
       "error": {
         "type": "String"

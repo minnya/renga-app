@@ -4,6 +4,8 @@
 
   "feedAppBarTitle": "Renga — フィード",
   "feedDailyQuizTooltip": "デイリークイズ",
+  "feedDailyQuizCompletedTooltip": "本日は達成済みです",
+  "feedDailyQuizCooldownLabel": "あと",
   "feedFilterAll": "全ユーザー",
   "feedFilterTop25": "上位25%",
   "feedFilterTop5": "上位5%",
@@ -77,6 +79,11 @@
   "quizTpAwardedAmount": "TPを{amount}獲得しました！",
   "quizStreakCount": "連続達成 {days} 日目",
   "quizBackToFeed": "フィードへ戻る",
+  "quizFeedbackCorrect": "正解！",
+  "quizFeedbackIncorrect": "不正解",
+  "quizFeedbackCorrectAnswer": "正解: {answer}",
+  "quizNextButton": "次へ",
+  "quizSeeResultButton": "結果を見る",
 
   "profileAppBarTitle": "プロフィール",
   "profileSignedOutMessage": "プロフィールを表示するにはログインしてください",
@@ -244,5 +251,22 @@
   "deleteAccountConfirmInstructions": "確認のためユーザー名「{username}」を入力してください",
   "deleteAccountUsernameFieldLabel": "ユーザー名",
   "deleteAccountButton": "アカウントを削除する",
-  "deleteAccountError": "アカウントの削除に失敗しました: {error}"
+  "deleteAccountError": "アカウントの削除に失敗しました: {error}",
+
+  "messagesListAppBarTitle": "メッセージ",
+  "messagesListEmpty": "まだメッセージはありません",
+  "messagesListLoadError": "会話一覧の取得に失敗しました: {error}",
+  "messagesListDeleteAction": "削除",
+  "messagesListBlockAction": "ブロック",
+  "messagesListUnblockAction": "ブロック解除",
+  "messagesListUnknownUser": "不明なユーザー",
+  "messagesConversationInputHint": "メッセージを入力",
+  "messagesConversationSendError": "メッセージの送信に失敗しました: {error}",
+  "messagesConversationBlockedUser": "このユーザーはブロックされています",
+  "messagesConversationBlockConfirmTitle": "このユーザーをブロックしますか？",
+  "messagesConversationBlockConfirmMessage": "ブロックすると、お互いにメッセージを送受信できなくなります。",
+  "messagesConversationDeleteConfirmTitle": "この会話を削除しますか？",
+  "messagesConversationDeleteConfirmMessage": "この操作はあなたの会話一覧からのみ会話を削除します。相手には影響しません。",
+  "messagesProfileMessageButton": "メッセージ",
+  "messagesStartConversationError": "会話の開始に失敗しました: {error}"
 }

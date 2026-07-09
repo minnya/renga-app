@@ -18,7 +18,7 @@ class DiscoverPage extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final selectedDomain = ref.watch(selectedDomainProvider);
     final rankingAsync = ref.watch(domainRankingProvider(selectedDomain));
-    final postsAsync = ref.watch(domainPostsProvider(selectedDomain));
+    final postsAsync = ref.watch(discoverFilteredPostsProvider);
 
     return Scaffold(
       body: Column(
@@ -58,6 +58,19 @@ class DiscoverPage extends ConsumerWidget {
                     }
                   },
                 ),
+                const SizedBox(height: 12),
+                // キーワード検索ボックス（design/product.md 3.16節）
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'キーワードで検索',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  ),
+                  onChanged: (value) {
+                    ref.read(discoverSearchKeywordProvider.notifier).state = value;
+                  },
+                ),
               ],
             ),
           ),
@@ -66,10 +79,10 @@ class DiscoverPage extends ConsumerWidget {
             child: RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(domainRankingProvider(selectedDomain));
-                ref.invalidate(domainPostsProvider(selectedDomain));
+                ref.invalidate(discoverFilteredPostsProvider);
                 await Future.wait([
                   ref.read(domainRankingProvider(selectedDomain).future),
-                  ref.read(domainPostsProvider(selectedDomain).future),
+                  ref.read(discoverFilteredPostsProvider.future),
                 ]);
               },
               child: ListView(

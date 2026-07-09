@@ -40,6 +40,10 @@ String domainDisplayLabel(String key) => key.replaceAll('_', '・');
 /// Discover画面で現在選択中のドメイン（デフォルトは先頭のドメイン）。
 final selectedDomainProvider = StateProvider<String>((ref) => domainTaxonomy.first);
 
+/// design/product.md 3.16節「Discoverのキーワード検索」。現在入力中の検索キーワード
+/// （初期値は空文字＝未検索）。
+final discoverSearchKeywordProvider = StateProvider<String>((ref) => '');
+
 /// design/system.md 1章の `domain_scores` テーブルから、指定ドメインのランキング
 /// （スコア降順、最大50件）を取得する。`profiles` をネストselectしてusername等も取得する。
 /// `domain_scores` は誰でもselect可能なRLSのため、未ログインでも取得できる。
@@ -72,6 +76,29 @@ final domainPostsProvider = FutureProvider.family<List<DomainPost>, String>((
       .contains('domain_labels', [domain])
       .order('created_at', ascending: false)
       .limit(50);
+
+  return rows.map((row) => DomainPost.fromMap(row)).toList();
+});
+
+/// design/product.md 3.16節「Discoverのキーワード検索」。選択中ドメイン
+/// （`selectedDomainProvider`）とキーワード（`discoverSearchKeywordProvider`）の両方で
+/// 投稿を絞り込む。キーワードが空の場合はドメイン絞り込みのみ（`domainPostsProvider`と同じ
+/// 結果）になる。
+final discoverFilteredPostsProvider = FutureProvider<List<DomainPost>>((ref) async {
+  final domain = ref.watch(selectedDomainProvider);
+  final keyword = ref.watch(discoverSearchKeywordProvider);
+
+  var query = supabase
+      .from('posts')
+      .select('id, body, media_type, media_urls, created_at, author_id, profiles(username, avatar_url)')
+      .contains('domain_labels', [domain]);
+
+  final trimmedKeyword = keyword.trim();
+  if (trimmedKeyword.isNotEmpty) {
+    query = query.ilike('body', '%$trimmedKeyword%');
+  }
+
+  final rows = await query.order('created_at', ascending: false).limit(50);
 
   return rows.map((row) => DomainPost.fromMap(row)).toList();
 });

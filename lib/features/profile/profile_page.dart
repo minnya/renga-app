@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../feed/intellect_badge.dart';
+import '../messages/messages_controller.dart';
 import 'profile_controller.dart';
 import 'profile_edit_sheet.dart';
 
@@ -15,20 +16,26 @@ import 'profile_edit_sheet.dart';
 /// - ログイン時: 自分の `profiles` 行を取得し、常に読み取り専用ビューを表示する。
 ///   編集は「編集」ボタンから開く [ProfileEditSheet]（ボトムシート）で行う
 ///   （design/product.md 3.10節）。
+/// - [userId] を指定すると他ユーザーのプロフィールを表示する（design/system.md 15章の
+///   DM開始導線用）。未指定時は常に自分自身のプロフィールを表示する（ボトムナビのタブ）。
 class ProfilePage extends ConsumerWidget {
-  const ProfilePage({super.key});
+  const ProfilePage({super.key, this.userId});
+
+  final String? userId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentUser = ref.watch(currentUserProvider);
     final l10n = AppLocalizations.of(context);
+    final targetUserId = userId ?? currentUser?.id;
+    final isOwnProfile = targetUserId != null && targetUserId == currentUser?.id;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.profileAppBarTitle),
         // design/product.md 3.11節「Settings画面」。Profile画面の歯車アイコンから遷移する。
         actions: [
-          if (currentUser != null)
+          if (isOwnProfile)
             IconButton(
               tooltip: 'Settings',
               onPressed: () => context.push('/settings'),
@@ -36,9 +43,9 @@ class ProfilePage extends ConsumerWidget {
             ),
         ],
       ),
-      body: currentUser == null
+      body: targetUserId == null
           ? _SignedOutView()
-          : _SignedInProfileView(userId: currentUser.id),
+          : _SignedInProfileView(userId: targetUserId, isOwnProfile: isOwnProfile),
     );
   }
 }
@@ -69,9 +76,26 @@ class _SignedOutView extends StatelessWidget {
 }
 
 class _SignedInProfileView extends ConsumerWidget {
-  const _SignedInProfileView({required this.userId});
+  const _SignedInProfileView({required this.userId, required this.isOwnProfile});
 
   final String userId;
+  final bool isOwnProfile;
+
+  /// design/system.md 15章「ダイレクトメッセージ（DM）」。他ユーザーのプロフィールから
+  /// DMを開始する導線。`get_or_create_dm_conversation` RPCで会話IDを取得し会話詳細へ遷移する。
+  Future<void> _handleStartConversation(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      final conversationId = await ref.read(messagesControllerProvider).startConversation(userId);
+      if (!context.mounted) return;
+      context.push('/messages/$conversationId');
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.messagesStartConversationError('$e'))),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -197,18 +221,25 @@ class _SignedInProfileView extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: () => showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                if (isOwnProfile)
+                  FilledButton.icon(
+                    onPressed: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                      ),
+                      builder: (_) => ProfileEditSheet(userId: userId, profile: profile),
                     ),
-                    builder: (_) => ProfileEditSheet(userId: userId, profile: profile),
+                    icon: const Icon(Icons.edit),
+                    label: Text(l10n.profileEditProfileButton),
+                  )
+                else
+                  FilledButton.icon(
+                    onPressed: () => _handleStartConversation(context, ref),
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: Text(l10n.messagesProfileMessageButton),
                   ),
-                  icon: const Icon(Icons.edit),
-                  label: Text(l10n.profileEditProfileButton),
-                ),
               ],
             ),
           ),

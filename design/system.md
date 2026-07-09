@@ -827,3 +827,87 @@ Mux（動画基盤）は開発初期を **Free プラン**（月間配信100,000
 
 開発初期〜小規模運用は実質ほぼ無料枠内に収まる設計だが、ユーザー数・動画投稿量の増加でSupabase Pro +
 Mux Pay as you goへ移行すると、目安として**月額$50〜150程度**のレンジに乗る想定。
+
+---
+
+## 15. ダイレクトメッセージ
+
+[product.md 3.17節「ダイレクトメッセージ（DM）」](product.md#317-ダイレクトメッセージdm)に対応する実装詳細。
+
+### 15.1 データモデル
+
+```sql
+-- 1対1会話。(user_a_id, user_b_id) はユーザーIDの昇順で正規化して保持し、
+-- 同じ2人の会話が重複作成されないようにunique制約で担保する。
+create table public.dm_conversations (
+  id uuid primary key default gen_random_uuid(),
+  user_a_id uuid not null references public.profiles(id), -- 常にuser_b_idより小さいUUID
+  user_b_id uuid not null references public.profiles(id),
+  last_message_at timestamptz not null default now(), -- 一覧のソート・プレビュー更新に使う非正規化列
+  created_at timestamptz not null default now(),
+  unique (user_a_id, user_b_id),
+  check (user_a_id < user_b_id)
+);
+
+-- メッセージ本体。
+create table public.dm_messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.dm_conversations(id) on delete cascade,
+  sender_id uuid not null references public.profiles(id),
+  body text, -- テキストメッセージ（画像/動画のみの送信時はnull可）
+  media_type text not null default 'text', -- text | image | video
+  media_url text, -- 画像URL（Supabase Storage）。動画はmux_playback_idで管理
+  mux_playback_id text, -- 動画メッセージの場合のMux再生ID（5章のMuxアーキテクチャを流用）
+  read_at timestamptz, -- 受信者が既読にした時刻。nullは未読
+  created_at timestamptz not null default now()
+);
+
+-- 会話単位のブロック（片方向）。ブロックした側からのみ有効。
+create table public.dm_blocks (
+  blocker_id uuid not null references public.profiles(id),
+  blocked_id uuid not null references public.profiles(id),
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id)
+);
+
+-- 会話の自分側のみの論理削除（3.17節「削除は自分の一覧からのみ非表示」）。
+create table public.dm_conversation_deletions (
+  conversation_id uuid not null references public.dm_conversations(id) on delete cascade,
+  user_id uuid not null references public.profiles(id),
+  deleted_at timestamptz not null default now(),
+  primary key (conversation_id, user_id)
+);
+```
+
+- `dm_conversations`は`user_a_id < user_b_id`のcheck制約で正規化し、どちらから始めても同じ会話に
+  解決されるようにする（アプリ側でinsert時に`least()`/`greatest()`相当の並び替えを行う）。
+- 削除後に相手から新規メッセージが届いた場合は、`dm_conversation_deletions`の該当行を削除して
+  一覧に復帰させる（＝相手が退会しない限り会話自体は消えない、Instagram/X等と同様の挙動）。
+
+### 15.2 RLS方針
+
+- `dm_conversations` / `dm_messages`: selectは`user_a_id`/`user_b_id`（メッセージは会話の参加者）が
+  `auth.uid()`と一致する場合のみ許可。insertは自分がその会話の参加者、かつ相手を自分がブロックしておらず
+  相手からもブロックされていない場合のみ許可（`dm_blocks`を参照するinsertポリシー）。
+- `dm_blocks`: 自分が`blocker_id`の行のみselect/insert/delete可能。
+- `dm_conversation_deletions`: 自分が`user_id`の行のみselect/insert/delete可能。
+
+### 15.3 Realtime・通知
+
+- Flutterクライアントは会話画面を開いている間、Supabase Realtime（Postgres Changes）で
+  `dm_messages`の`conversation_id = 該当会話`をフィルタしたINSERTイベントを購読し、ポーリングなしで
+  新着メッセージを即座に表示する。
+- DM一覧画面では、ログインユーザーが参加する全会話の`dm_messages` INSERTイベントを購読し、
+  該当会話のプレビュー・未読バッジ・並び順（`last_message_at`）をリアルタイム更新する。
+- プッシュ通知: メッセージinsert時のDB trigger（またはEdge Function経由）で、受信者が該当会話画面を
+  開いていない場合にFCM通知を送る（4章のFirebase連携を流用）。「開いているかどうか」の判定は
+  Phase 1では簡易的に「アプリがフォアグラウンドで該当会話画面を表示中か」をクライアント側で
+  Supabase Presenceに反映し、送信側/Edge Function側で参照する方式を想定（実装コストが高い場合は
+  Phase 1では「常に通知を送るが、当該会話を開いている端末側で通知を抑制する」という簡易版でも可）。
+
+### 15.4 添付メディア
+
+- 画像: 3.1節の投稿画像と同様、`post-images`バケットとは別に`dm-media`バケットへ`{userId}/{fileName}`で
+  アップロードし、公開URLを`dm_messages.media_url`へ保存する。
+- 動画: 5章のMux Direct Uploadフローを流用し、アップロード完了後の`mux_playback_id`を
+  `dm_messages.mux_playback_id`へ保存する。DM内動画はフィード同様HLS再生する。

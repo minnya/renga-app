@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -35,6 +37,8 @@ class FeedPage extends ConsumerWidget {
     final layer = ref.watch(layerFilterProvider);
     // design/system.md 9章「Flutterアプリ構成」: 文言はAppLocalizations経由で取得する（gen-l10n生成）。
     final l10n = AppLocalizations.of(context);
+    // design/product.md 3.15節「デイリーミッションの受験可否・クールダウン表示」。
+    final hasCompletedDailyToday = ref.watch(hasCompletedDailyTodayProvider).value ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -43,13 +47,22 @@ class FeedPage extends ConsumerWidget {
         actions: [
           if (currentUser != null) ...[
             IconButton(
+              tooltip: 'メッセージ',
+              onPressed: () => context.push('/messages'),
+              icon: const Icon(Icons.chat_bubble_outline),
+            ),
+            IconButton(
               tooltip: '通知',
               onPressed: () => context.push('/notifications'),
               icon: const Icon(Icons.notifications_outlined),
             ),
+            if (hasCompletedDailyToday) ...[
+              const _DailyQuizCooldownLabel(),
+              const SizedBox(width: 4),
+            ],
             IconButton(
-              tooltip: l10n.feedDailyQuizTooltip,
-              onPressed: () => context.push('/daily-quiz'),
+              tooltip: hasCompletedDailyToday ? l10n.feedDailyQuizCompletedTooltip : l10n.feedDailyQuizTooltip,
+              onPressed: hasCompletedDailyToday ? null : () => context.push('/daily-quiz'),
               icon: const Icon(Icons.quiz_outlined),
             ),
           ],
@@ -124,6 +137,56 @@ class FeedPage extends ConsumerWidget {
       ),
       // design/product.md 4章: 投稿作成はボトムナビゲーション中央のComposeタブに統一したため、
       // Feed画面独自のFABは撤去する（X/Instagram同様、投稿導線をボトムナビに一本化）。
+    );
+  }
+}
+
+/// design/product.md 3.15節「デイリーミッションの受験可否・クールダウン表示」。
+/// UTC0時までの残り時間を`HH:mm`形式で1分ごとに更新表示する。
+class _DailyQuizCooldownLabel extends StatefulWidget {
+  const _DailyQuizCooldownLabel();
+
+  @override
+  State<_DailyQuizCooldownLabel> createState() => _DailyQuizCooldownLabelState();
+}
+
+class _DailyQuizCooldownLabelState extends State<_DailyQuizCooldownLabel> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _formatRemaining() {
+    final nowUtc = DateTime.now().toUtc();
+    final nextResetUtc = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day).add(const Duration(days: 1));
+    final remaining = nextResetUtc.difference(nowUtc);
+    final hours = remaining.inHours.toString().padLeft(2, '0');
+    final minutes = (remaining.inMinutes % 60).toString().padLeft(2, '0');
+    return '$hours:$minutes';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Center(
+        child: Text(
+          '${l10n.feedDailyQuizCooldownLabel} ${_formatRemaining()}',
+          style: Theme.of(context).textTheme.labelSmall,
+        ),
+      ),
     );
   }
 }

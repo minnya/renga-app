@@ -31,6 +31,12 @@ class _QuizPageState extends ConsumerState<QuizPage> {
   bool _tpAwarded = false;
   DailyCompletionResult? _dailyResult;
 
+  // design/product.md 3.14節「回答結果フィードバック」。
+  // 選択直後は正誤フィードバック画面を表示し、明示的な「次へ」操作で次の設問に進む。
+  bool _showingFeedback = false;
+  String? _selectedChoice;
+  bool _lastAnswerCorrect = false;
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -85,8 +91,15 @@ class _QuizPageState extends ConsumerState<QuizPage> {
     if (!mounted) return;
     setState(() {
       if (isCorrect) _correctCount++;
+      _selectedChoice = selectedChoice;
+      _lastAnswerCorrect = isCorrect;
+      _showingFeedback = true;
     });
+  }
 
+  /// フィードバック画面の「次へ」/「結果を見る」ボタン押下時。
+  Future<void> _handleNext() async {
+    setState(() => _showingFeedback = false);
     if (_currentIndex + 1 < _questions!.length) {
       setState(() => _currentIndex++);
       _startQuestionTimer(_questions![_currentIndex]);
@@ -135,6 +148,59 @@ class _QuizPageState extends ConsumerState<QuizPage> {
           }
 
           final question = _questions![_currentIndex];
+
+          if (_showingFeedback) {
+            final isLastQuestion = _currentIndex + 1 >= _questions!.length;
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    l10n.quizProgress(_currentIndex + 1, _questions!.length),
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 24),
+                  Icon(
+                    _lastAnswerCorrect ? Icons.check_circle : Icons.cancel,
+                    color: _lastAnswerCorrect ? Colors.green : Colors.red,
+                    size: 64,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _lastAnswerCorrect ? l10n.quizFeedbackCorrect : l10n.quizFeedbackIncorrect,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: _lastAnswerCorrect ? Colors.green : Colors.red,
+                        ),
+                  ),
+                  if (!_lastAnswerCorrect) ...[
+                    const SizedBox(height: 12),
+                    if (_selectedChoice != null)
+                      Text(
+                        _selectedChoice!,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.quizFeedbackCorrectAnswer(question.correctAnswer),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ],
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: _handleNext,
+                    child: Text(isLastQuestion ? l10n.quizSeeResultButton : l10n.quizNextButton),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
