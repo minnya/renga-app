@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,30 +92,33 @@ class AuthController extends AsyncNotifier<void> {
   Future<void> initializeGoogleSignIn() {
     return _googleSignInInitFuture ??= () async {
       final clientId = _requireGoogleClientId();
-      // Android(Credential Manager経由)ではIDトークンに自動でnonceクレームが付与されるため、
-      // ここで明示的にnonceを生成してGoogle側とSupabase側の両方に同じ値を渡す必要がある。
-      // 省略すると「Passed nonce and nonce in id_token should either both exist or not.」エラーになる。
-      _googleSignInNonce = _generateNonce();
+      // GoogleにはSHA256でハッシュ化したnonceを渡し、IDトークンの`nonce`クレームに
+      // そのハッシュ値が埋め込まれるようにする。Supabase側にはハッシュ化前の生nonceを渡すと、
+      // Supabaseがサーバー側で同じくSHA256ハッシュを取って両者を比較検証する
+      // （生のまま両方に渡すと「invalid nonce: Nonces mismatch」エラーになる）。
+      _googleSignInRawNonce = _generateNonce();
+      final hashedNonce = _sha256ofString(_googleSignInRawNonce!);
       if (kIsWeb) {
-        await GoogleSignIn.instance.initialize(clientId: clientId, nonce: _googleSignInNonce);
+        await GoogleSignIn.instance.initialize(clientId: clientId, nonce: hashedNonce);
       } else {
-        await GoogleSignIn.instance.initialize(
-          serverClientId: clientId,
-          nonce: _googleSignInNonce,
-        );
+        await GoogleSignIn.instance.initialize(serverClientId: clientId, nonce: hashedNonce);
       }
     }();
   }
 
   static Future<void>? _googleSignInInitFuture;
-  static String? _googleSignInNonce;
+  static String? _googleSignInRawNonce;
 
-  /// GoogleSignInとSupabaseの両方に渡す、認証1回分のランダムなnonce文字列を生成する。
+  /// Google/Supabase双方に渡す、認証1回分のランダムなnonce文字列を生成する。
   static String _generateNonce([int length = 32]) {
     const charset =
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     final random = Random.secure();
     return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
+  }
+
+  static String _sha256ofString(String input) {
+    return sha256.convert(utf8.encode(input)).toString();
   }
 
   /// Google Sign-InでログインしSupabase Authと連携する（Android/iOS向け）。
@@ -178,7 +183,7 @@ class AuthController extends AsyncNotifier<void> {
       provider: OAuthProvider.google,
       idToken: idToken,
       accessToken: accessToken,
-      nonce: _googleSignInNonce,
+      nonce: _googleSignInRawNonce,
     );
   }
 }
