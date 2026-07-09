@@ -87,6 +87,12 @@ create table public.posts (
   created_at timestamptz not null default now()
 );
 
+-- `quoted_post_id`はposts自身への自己参照FK。クライアント側でPostgRESTのネストselectにより
+-- 引用元投稿を埋め込む際、`quoted_post:posts!quoted_post_id(...)`という書き方だと自己結合の
+-- 方向が曖昧になり、逆方向（「このポストを引用している側」）に解決されてしまう場合があるため、
+-- 必ずFKカラム名を直接指定する`quoted_post:quoted_post_id(...)`という書き方を使うこと
+-- （`lib/features/feed/feed_controller.dart`参照）。
+
 -- 動画（Mux連携）。1投稿につき最大1本、またはコメント/返信につき最大1本を想定
 create table public.videos (
   id uuid primary key default gen_random_uuid(),

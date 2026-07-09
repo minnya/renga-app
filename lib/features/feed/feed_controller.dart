@@ -142,7 +142,11 @@ final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
         'profiles(username, intellect_percentile), '
         'videos(status, mux_playback_id, thumbnail_url), '
         'likes(count), comments(count), reposts(count), '
-        'quoted_post:posts!quoted_post_id(id, body, media_type, media_urls, author_id, '
+        // 自己参照FK（posts.quoted_post_id -> posts.id）の埋め込みは、`posts!quoted_post_id`
+        // という書き方だと方向が曖昧になりPostgRESTが逆方向（このポストを引用している側の投稿）を
+        // 解決してしまうことがあるため、FKカラム名を直接指定する公式推奨の書き方で明示的に
+        // 「このポストが指す先（引用元）」の単一行を埋め込む。
+        'quoted_post:quoted_post_id(id, body, media_type, media_urls, author_id, '
         'created_at, profiles(username), videos(thumbnail_url))',
       )
       .order('created_at', ascending: false)
@@ -163,7 +167,11 @@ final postByIdProvider = FutureProvider.family<Post, String>((ref, postId) async
         'profiles(username, intellect_percentile), '
         'videos(status, mux_playback_id, thumbnail_url), '
         'likes(count), comments(count), reposts(count), '
-        'quoted_post:posts!quoted_post_id(id, body, media_type, media_urls, author_id, '
+        // 自己参照FK（posts.quoted_post_id -> posts.id）の埋め込みは、`posts!quoted_post_id`
+        // という書き方だと方向が曖昧になりPostgRESTが逆方向（このポストを引用している側の投稿）を
+        // 解決してしまうことがあるため、FKカラム名を直接指定する公式推奨の書き方で明示的に
+        // 「このポストが指す先（引用元）」の単一行を埋め込む。
+        'quoted_post:quoted_post_id(id, body, media_type, media_urls, author_id, '
         'created_at, profiles(username), videos(thumbnail_url))',
       )
       .eq('id', postId)
