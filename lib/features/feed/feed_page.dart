@@ -337,15 +337,14 @@ class _PostTileState extends ConsumerState<PostTile> {
   Future<void> _handleToggleLike(bool currentlyLiked) async {
     final l10n = AppLocalizations.of(context);
     try {
-      await ref.read(feedControllerProvider).toggleLike(
-            postId: post.id,
-            currentlyLiked: currentlyLiked,
-          );
+      await ref
+          .read(feedControllerProvider)
+          .toggleLike(postId: post.id, currentlyLiked: currentlyLiked);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.feedLikeError('$e'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.feedLikeError('$e'))));
     }
   }
 
@@ -353,15 +352,14 @@ class _PostTileState extends ConsumerState<PostTile> {
   Future<void> _handleToggleRepost(bool currentlyReposted) async {
     final l10n = AppLocalizations.of(context);
     try {
-      await ref.read(feedControllerProvider).toggleRepost(
-            postId: post.id,
-            currentlyReposted: currentlyReposted,
-          );
+      await ref
+          .read(feedControllerProvider)
+          .toggleRepost(postId: post.id, currentlyReposted: currentlyReposted);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.feedRepostError('$e'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.feedRepostError('$e'))));
     }
   }
 
@@ -410,197 +408,227 @@ class _PostTileState extends ConsumerState<PostTile> {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrls = post.mediaType == 'image' && (post.mediaUrls?.isNotEmpty ?? false)
+    final imageUrls =
+        post.mediaType == 'image' && (post.mediaUrls?.isNotEmpty ?? false)
         ? post.mediaUrls!
         : null;
     final l10n = AppLocalizations.of(context);
 
     final authorName = post.authorUsername ?? l10n.feedUnknownUser;
-    final firstLetter = authorName.isNotEmpty ? authorName[0].toUpperCase() : '?';
+    final firstLetter = authorName.isNotEmpty
+        ? authorName[0].toUpperCase()
+        : '?';
 
-    final likedIds = ref.watch(myLikedPostIdsProvider).value ?? const <String>{};
-    final repostedIds = ref.watch(myRepostedPostIdsProvider).value ?? const <String>{};
+    final likedIds =
+        ref.watch(myLikedPostIdsProvider).value ?? const <String>{};
+    final repostedIds =
+        ref.watch(myRepostedPostIdsProvider).value ?? const <String>{};
     final isLiked = likedIds.contains(post.id);
     final isReposted = repostedIds.contains(post.id);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header: Avatar + Username + Created At
-          Row(
+    // design/product.md 3.12節「フィード投稿カードのタップ範囲」。カード全体を
+    // InkWell/GestureDetectorでラップし、本文以外の余白部分をタップしても投稿詳細へ
+    // 遷移できるようにする。メディア・ユーザー情報（アバター/ユーザー名）・アクションバーの
+    // 各ボタンは個別に独自のonTapハンドラを持つため、Flutter標準の挙動として子の
+    // タップハンドラが優先され、親のカードタップと二重発火しない。
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: widget.enableThreadNavigation
+            ? () => context.push('/posts/${post.id}')
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
-                onTap: () => context.push('/profile/${post.authorId}'),
-                child: CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Theme.of(context).colorScheme.primary.withAlpha((0.3 * 255).toInt()),
-                  child: Text(
-                    firstLetter,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    GestureDetector(
-                      onTap: () => context.push('/profile/${post.authorId}'),
+              // Header: Avatar + Username + Created At
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: () => context.push('/profile/${post.authorId}'),
+                    child: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withAlpha((0.3 * 255).toInt()),
                       child: Text(
-                        authorName,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
+                        firstLetter,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.bold,
                             ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    // Metadata row: Badge + Staked TP (if applicable)
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        IntellectBadge(percentile: post.authorIntellectPercentile),
-                        if (post.postType == 'staked')
-                          Chip(
-                            avatar: const Icon(Icons.bolt, size: 14),
-                            label: Text(
-                              l10n.feedStakedTpLabel(post.stakedTp as int),
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            backgroundColor: Theme.of(context).colorScheme.tertiaryContainer,
+                        GestureDetector(
+                          onTap: () =>
+                              context.push('/profile/${post.authorId}'),
+                          child: Text(
+                            authorName,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                        ),
+                        // Metadata row: Badge + Staked TP (if applicable)
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            IntellectBadge(
+                              percentile: post.authorIntellectPercentile,
+                            ),
+                            if (post.postType == 'staked')
+                              Chip(
+                                avatar: const Icon(Icons.bolt, size: 14),
+                                label: Text(
+                                  l10n.feedStakedTpLabel(post.stakedTp as int),
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.tertiaryContainer,
+                              ),
+                          ],
+                        ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                widget.showAbsoluteTime
-                    ? absoluteTimeLabel(post.createdAt)
-                    : relativeTimeLabel(l10n, post.createdAt),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    widget.showAbsoluteTime
+                        ? absoluteTimeLabel(post.createdAt)
+                        : relativeTimeLabel(l10n, post.createdAt),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Post body text（一覧画面ではタップで投稿詳細画面へ。X/Instagram同様、
-          // 投稿本体が親スレッド表示への導線。詳細画面自身では無効化する）
-          if (post.body.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: GestureDetector(
-                onTap: widget.enableThreadNavigation ? () => context.push('/posts/${post.id}') : null,
-                child: Text(
-                  post.body,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-            ),
-          // design/system.md 6.1節「ドメインラベリング」。AIが自動付与した産業分類タグ。
-          if (post.domainLabels != null && post.domainLabels!.isNotEmpty) ...[
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: post.domainLabels!.map((label) {
-                return Chip(
-                  avatar: const Icon(Icons.auto_awesome, size: 14),
-                  label: Text(domainDisplayLabel(label), style: const TextStyle(fontSize: 11)),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 12),
-          ],
-          // Image media（design/product.md 3.13節: 複数画像は横スクロール＋ドットインジケーター）
-          if (imageUrls != null) ...[
-            ImageCarousel(
-              imageUrls: imageUrls,
-              onTapImage: (index) => _openFullscreenImage(imageUrls, index),
-            ),
-            const SizedBox(height: 12),
-          ],
-          // YouTube player
-          if (_youtubeController != null) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: YoutubePlayer(controller: _youtubeController!),
-            ),
-            const SizedBox(height: 12),
-          ],
-          // Mux video player（design/product.md 3.13節: スクロールイン自動再生・全画面表示）
-          if (post.mediaType == 'video') ...[
-            post.videoStatus == 'ready' && post.videoPlaybackId != null
-                ? VisibilityDetector(
-                    key: ValueKey('video-visibility-${post.id}'),
-                    onVisibilityChanged: (info) {
-                      final visible = info.visibleFraction > 0.6;
-                      if (visible != _videoVisible && mounted) {
-                        setState(() => _videoVisible = visible);
-                      }
-                    },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: MuxVideoPlayerWidget(
-                        playbackId: post.videoPlaybackId!,
-                        autoPlay: _videoVisible,
-                        isPreview: true,
-                        showFullscreenButton: true,
-                        onFullscreenTap: () => _openFullscreenVideo(post.videoPlaybackId!),
-                      ),
-                    ),
-                  )
-                : ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: VideoProcessingPlaceholder(
-                      thumbnailUrl: post.videoThumbnailUrl,
-                      status: post.videoStatus ?? 'pending',
-                    ),
                   ),
-            const SizedBox(height: 12),
-          ],
-          // Action bar: Like, Comment, Repost, Share（アイコンのみ。件数は1以上のみ表示）
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _ActionBarButton(
-                icon: isLiked ? Icons.favorite : Icons.favorite_border,
-                count: post.likeCount,
-                color: isLiked ? Colors.red : null,
-                onPressed: () => _handleToggleLike(isLiked),
+                ],
               ),
-              _ActionBarButton(
-                icon: Icons.chat_bubble_outline,
-                count: post.commentCount,
-                onPressed: _handleOpenComments,
-              ),
-              _ActionBarButton(
-                icon: Icons.repeat,
-                count: post.repostCount,
-                color: isReposted ? Colors.green : null,
-                onPressed: () => _handleToggleRepost(isReposted),
-              ),
-              _ActionBarButton(
-                icon: Icons.share_outlined,
-                onPressed: _handleShare,
+              const SizedBox(height: 12),
+              // Post body text（カード全体のInkWellが投稿詳細への遷移を担うため、
+              // 本文テキスト自体には個別のタップハンドラを持たせない）
+              if (post.body.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    post.body,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              // design/system.md 6.1節「ドメインラベリング」。AIが自動付与した産業分類タグ。
+              if (post.domainLabels != null &&
+                  post.domainLabels!.isNotEmpty) ...[
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: post.domainLabels!.map((label) {
+                    return Chip(
+                      avatar: const Icon(Icons.auto_awesome, size: 14),
+                      label: Text(
+                        domainDisplayLabel(label),
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.secondaryContainer,
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+              ],
+              // Image media（design/product.md 3.13節: 複数画像は横スクロール＋ドットインジケーター）
+              if (imageUrls != null) ...[
+                ImageCarousel(
+                  imageUrls: imageUrls,
+                  onTapImage: (index) => _openFullscreenImage(imageUrls, index),
+                ),
+                const SizedBox(height: 12),
+              ],
+              // YouTube player
+              if (_youtubeController != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: YoutubePlayer(controller: _youtubeController!),
+                ),
+                const SizedBox(height: 12),
+              ],
+              // Mux video player（design/product.md 3.13節: スクロールイン自動再生・全画面表示）
+              if (post.mediaType == 'video') ...[
+                post.videoStatus == 'ready' && post.videoPlaybackId != null
+                    ? VisibilityDetector(
+                        key: ValueKey('video-visibility-${post.id}'),
+                        onVisibilityChanged: (info) {
+                          final visible = info.visibleFraction > 0.6;
+                          if (visible != _videoVisible && mounted) {
+                            setState(() => _videoVisible = visible);
+                          }
+                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: MuxVideoPlayerWidget(
+                            playbackId: post.videoPlaybackId!,
+                            autoPlay: _videoVisible,
+                            isPreview: true,
+                            showFullscreenButton: true,
+                            onFullscreenTap: () =>
+                                _openFullscreenVideo(post.videoPlaybackId!),
+                          ),
+                        ),
+                      )
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: VideoProcessingPlaceholder(
+                          thumbnailUrl: post.videoThumbnailUrl,
+                          status: post.videoStatus ?? 'pending',
+                        ),
+                      ),
+                const SizedBox(height: 12),
+              ],
+              // Action bar: Like, Comment, Repost, Share（アイコンのみ。件数は1以上のみ表示）
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _ActionBarButton(
+                    icon: isLiked ? Icons.favorite : Icons.favorite_border,
+                    count: post.likeCount,
+                    color: isLiked ? Colors.red : null,
+                    onPressed: () => _handleToggleLike(isLiked),
+                  ),
+                  _ActionBarButton(
+                    icon: Icons.chat_bubble_outline,
+                    count: post.commentCount,
+                    onPressed: _handleOpenComments,
+                  ),
+                  _ActionBarButton(
+                    icon: Icons.repeat,
+                    count: post.repostCount,
+                    color: isReposted ? Colors.green : null,
+                    onPressed: () => _handleToggleRepost(isReposted),
+                  ),
+                  _ActionBarButton(
+                    icon: Icons.share_outlined,
+                    onPressed: _handleShare,
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
