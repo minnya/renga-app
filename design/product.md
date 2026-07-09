@@ -322,6 +322,10 @@ Home（ボトムナビゲーション、5タブ。X/Instagramのように中央�
 各タブ内はX/Instagram同様にネストしたスタック遷移（一覧→詳細）を持つ
 （例: Feed内の投稿タップ→詳細、Discover内のユーザータップ→プロフィール）。
 
+実装上、Messages（DM一覧）もFeed/Discover/Battle/Profileと同じ`StatefulShellRoute`のブランチとして
+扱われ、タブ切替はページ遷移なしで即時に行われる（他タブと同一のIndexedStack挙動）。
+DM個別会話画面のみ、一覧タブ内からフルスクリーンでpushされる別画面のままとする。
+
 付随画面（ボトムナビゲーションの外、モーダル/プッシュ遷移）
 - Daily Mission（デイリークイズ）モーダル
 - Lock Quiz（ステーキング投稿前の通行料クイズ）モーダル

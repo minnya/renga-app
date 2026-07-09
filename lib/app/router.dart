@@ -105,9 +105,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       // design/product.md 4章「情報アーキテクチャ」: InstagramやX(Twitter)と同じ
-      // ボトムナビゲーション＋タブ構造。Feed/Discover/Battle/Profileの4ブランチは
+      // ボトムナビゲーション＋タブ構造。Feed/Discover/Messages/Battle/Profileの5ブランチは
       // それぞれ独立したナビゲーションスタック・スクロール位置を保持する
-      // (`StatefulShellRoute.indexedStack`)。Composeはタブに含めず、中央ボタンから
+      // (`StatefulShellRoute.indexedStack`)。DM個別会話(`/messages/:conversationId`)は
+      // ブランチ内から`push`されるフルスクリーン画面。Composeはタブに含めず、中央ボタンから
       // 常にフルスクリーンで`push`する（[MainShell]参照）。
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -140,6 +141,24 @@ final routerProvider = Provider<GoRouter>((ref) {
                       context,
                       state,
                       BattleDetailPage(battleId: state.pathParameters['battleId']!),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/messages',
+                builder: (context, state) => const MessagesListPage(),
+                routes: [
+                  GoRoute(
+                    path: ':conversationId',
+                    pageBuilder: (context, state) => _fadeSlidePage(
+                      context,
+                      state,
+                      ConversationPage(conversationId: state.pathParameters['conversationId']!),
                     ),
                   ),
                 ],
@@ -193,21 +212,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         pageBuilder: (context, state) => _fadeSlidePage(context, state, const NotificationsPage()),
-      ),
-      // design/system.md 15章「ダイレクトメッセージ（DM）」。DM一覧・会話詳細画面。
-      GoRoute(
-        path: '/messages',
-        pageBuilder: (context, state) => _fadeSlidePage(context, state, const MessagesListPage()),
-        routes: [
-          GoRoute(
-            path: ':conversationId',
-            pageBuilder: (context, state) => _fadeSlidePage(
-              context,
-              state,
-              ConversationPage(conversationId: state.pathParameters['conversationId']!),
-            ),
-          ),
-        ],
       ),
       GoRoute(
         path: '/settings',

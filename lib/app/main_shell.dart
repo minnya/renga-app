@@ -2,26 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 /// design/product.md 4章「情報アーキテクチャ」。InstagramやX(Twitter)と同じ
-/// 「ボトムナビゲーション＋タブ」構造。各タブ(Feed/Discover/Battle/Profile)は
+/// 「ボトムナビゲーション＋タブ」構造。各タブ(Feed/Discover/Messages/Battle/Profile)は
 /// `StatefulShellRoute.indexedStack`で独立したナビゲーションスタックとスクロール位置を保持する。
-///
-/// Messagesはタブとして状態を保持せず、中央のボタンから常に新規のフルスクリーン画面として
-/// `push`する（[navigationShell]のブランチ切替は行わない）。Composeはフィード画面上部の
-/// ボタンから開く。
+/// Messages一覧もこのタブの一部としてスタック内に保持され、他タブと同じく即時切替される
+/// (個別DM会話画面はタブ内から`push`されるフルスクリーン画面のまま)。
+/// Composeはフィード画面上部のボタンから開く。
 class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
-
-  static const _messagesTabIndex = 2;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndexFor(navigationShell.currentIndex),
-        onTap: (tappedIndex) => _onTap(context, tappedIndex),
+        currentIndex: navigationShell.currentIndex,
+        onTap: (tappedIndex) =>
+            navigationShell.goBranch(tappedIndex, initialLocation: tappedIndex == navigationShell.currentIndex),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Feed'),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Discover'),
@@ -31,18 +29,5 @@ class MainShell extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  /// ボトムナビゲーションのインデックス(5項目、中央がMessages)と、
-  /// [StatefulShellRoute]のブランチインデックス(4ブランチ、Messagesを含まない)の対応付け。
-  int _currentIndexFor(int branchIndex) => branchIndex < _messagesTabIndex ? branchIndex : branchIndex + 1;
-
-  void _onTap(BuildContext context, int tappedIndex) {
-    if (tappedIndex == _messagesTabIndex) {
-      context.push('/messages');
-      return;
-    }
-    final branchIndex = tappedIndex < _messagesTabIndex ? tappedIndex : tappedIndex - 1;
-    navigationShell.goBranch(branchIndex, initialLocation: branchIndex == navigationShell.currentIndex);
   }
 }
