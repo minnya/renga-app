@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,15 +90,31 @@ class AuthController extends AsyncNotifier<void> {
   Future<void> initializeGoogleSignIn() {
     return _googleSignInInitFuture ??= () async {
       final clientId = _requireGoogleClientId();
+      // Android(Credential Manager経由)ではIDトークンに自動でnonceクレームが付与されるため、
+      // ここで明示的にnonceを生成してGoogle側とSupabase側の両方に同じ値を渡す必要がある。
+      // 省略すると「Passed nonce and nonce in id_token should either both exist or not.」エラーになる。
+      _googleSignInNonce = _generateNonce();
       if (kIsWeb) {
-        await GoogleSignIn.instance.initialize(clientId: clientId);
+        await GoogleSignIn.instance.initialize(clientId: clientId, nonce: _googleSignInNonce);
       } else {
-        await GoogleSignIn.instance.initialize(serverClientId: clientId);
+        await GoogleSignIn.instance.initialize(
+          serverClientId: clientId,
+          nonce: _googleSignInNonce,
+        );
       }
     }();
   }
 
   static Future<void>? _googleSignInInitFuture;
+  static String? _googleSignInNonce;
+
+  /// GoogleSignInとSupabaseの両方に渡す、認証1回分のランダムなnonce文字列を生成する。
+  static String _generateNonce([int length = 32]) {
+    const charset =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    final random = Random.secure();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
+  }
 
   /// Google Sign-InでログインしSupabase Authと連携する（Android/iOS向け）。
   ///
@@ -160,6 +178,7 @@ class AuthController extends AsyncNotifier<void> {
       provider: OAuthProvider.google,
       idToken: idToken,
       accessToken: accessToken,
+      nonce: _googleSignInNonce,
     );
   }
 }
