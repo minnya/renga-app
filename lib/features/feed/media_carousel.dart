@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 /// 複数画像を横スクロールで表示するカルーセル。
@@ -48,10 +49,12 @@ class _ImageCarouselState extends State<ImageCarousel> {
   }
 
   Widget _buildImage(String url) {
-    return Image.network(
-      url,
+    return CachedNetworkImage(
+      imageUrl: url,
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
+      fadeInDuration: Duration.zero,
+      placeholder: (context, url) => Container(color: Theme.of(context).colorScheme.surfaceContainerHighest),
+      errorWidget: (context, url, error) {
         return Container(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           alignment: Alignment.center,

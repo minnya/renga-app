@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -148,8 +149,8 @@ class _ConversationTile extends ConsumerWidget {
                     ),
                   )
                 : ClipOval(
-                    child: Image.network(
-                      avatarUrl,
+                    child: CachedNetworkImage(
+                      imageUrl: avatarUrl,
                       width: 48,
                       height: 48,
                       fit: BoxFit.cover,

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -225,10 +226,10 @@ class VideoProcessingPlaceholder extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (thumbnailUrl != null)
-            Image.network(
-              thumbnailUrl!,
+            CachedNetworkImage(
+              imageUrl: thumbnailUrl!,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(color: Colors.black12),
+              errorWidget: (context, url, error) => Container(color: Colors.black12),
             )
           else
             Container(color: Colors.black12),

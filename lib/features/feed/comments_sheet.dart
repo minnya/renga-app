@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -184,12 +185,12 @@ class _CommentsBottomSheetState extends ConsumerState<CommentsBottomSheet> {
       radius: 16,
       backgroundColor: theme.colorScheme.primaryContainer,
       child: ClipOval(
-        child: Image.network(
-          avatarUrl,
+        child: CachedNetworkImage(
+          imageUrl: avatarUrl,
           width: 32,
           height: 32,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => initialAvatar(),
+          errorWidget: (context, url, error) => initialAvatar(),
         ),
       ),
     );
@@ -215,8 +216,8 @@ class _CommentsBottomSheetState extends ConsumerState<CommentsBottomSheet> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  urls[index],
+                child: CachedNetworkImage(
+                  imageUrl: urls[index],
                   width: 72,
                   height: 72,
                   fit: BoxFit.cover,
