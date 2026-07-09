@@ -64,9 +64,12 @@ class _CompleteProfilePageState extends ConsumerState<CompleteProfilePage> {
     } on PostgrestException catch (e) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.completeProfileFailedMessage(e.message))));
+      // PostgreSQLのunique_violation（profiles_username_key）。生のエラーメッセージを
+      // そのままユーザーに見せず、ユーザー名重複であることが分かる文言に置き換える。
+      final message = e.code == '23505'
+          ? l10n.completeProfileUsernameTaken
+          : l10n.completeProfileFailedMessage(e.message);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

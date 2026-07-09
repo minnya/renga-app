@@ -166,6 +166,7 @@
       }
     }
   },
+  "completeProfileUsernameTaken": "This username is already taken. Please choose another one.",
 
   "quizOnboardingTitle": "Onboarding Quiz",
   "quizDailyTitle": "Daily Quiz",

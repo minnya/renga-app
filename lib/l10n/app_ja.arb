@@ -79,6 +79,7 @@
   "completeProfileUsernameRequired": "ユーザー名を入力してください",
   "completeProfileSubmitButton": "続ける",
   "completeProfileFailedMessage": "プロフィールの保存に失敗しました: {error}",
+  "completeProfileUsernameTaken": "このユーザー名は既に使われています。別のユーザー名を入力してください",
 
   "quizOnboardingTitle": "オンボーディングクイズ",
   "quizDailyTitle": "デイリークイズ",
