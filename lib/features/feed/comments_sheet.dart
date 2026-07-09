@@ -306,182 +306,187 @@ class _CommentsBottomSheetState extends ConsumerState<CommentsBottomSheet> {
       minChildSize: 0.4,
       expand: false,
       builder: (context, scrollController) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(
-                  l10n.feedCommentsSheetTitle,
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                l10n.feedCommentsSheetTitle,
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const Divider(height: 1),
-              Expanded(
-                child: commentsAsync.when(
-                  data: (comments) {
-                    if (comments.isEmpty) {
-                      return Center(child: Text(l10n.feedCommentEmpty));
-                    }
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: commentsAsync.when(
+                data: (comments) {
+                  if (comments.isEmpty) {
+                    return Center(child: Text(l10n.feedCommentEmpty));
+                  }
 
-                    final topLevel = comments.where((c) => !c.isReply).toList();
-                    final repliesByParent = <String, List<Comment>>{};
-                    for (final c in comments.where((c) => c.isReply)) {
-                      repliesByParent.putIfAbsent(c.parentCommentId!, () => []).add(c);
-                    }
+                  final topLevel = comments.where((c) => !c.isReply).toList();
+                  final repliesByParent = <String, List<Comment>>{};
+                  for (final c in comments.where((c) => c.isReply)) {
+                    repliesByParent.putIfAbsent(c.parentCommentId!, () => []).add(c);
+                  }
 
-                    return ListView.separated(
-                      controller: scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: topLevel.length,
-                      separatorBuilder: (context, index) => const Divider(height: 20),
-                      itemBuilder: (context, index) {
-                        final comment = topLevel[index];
-                        final replies = repliesByParent[comment.id] ?? const <Comment>[];
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildCommentRow(context, l10n, theme, comment, isReply: false),
-                            for (final reply in replies)
-                              _buildCommentRow(context, l10n, theme, reply, isReply: true),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (error, stackTrace) => Center(child: Text('$error')),
-                ),
+                  return ListView.separated(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: topLevel.length,
+                    separatorBuilder: (context, index) => const Divider(height: 20),
+                    itemBuilder: (context, index) {
+                      final comment = topLevel[index];
+                      final replies = repliesByParent[comment.id] ?? const <Comment>[];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildCommentRow(context, l10n, theme, comment, isReply: false),
+                          for (final reply in replies)
+                            _buildCommentRow(context, l10n, theme, reply, isReply: true),
+                        ],
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stackTrace) => Center(child: Text('$error')),
               ),
-              const Divider(height: 1),
-              if (_replyingTo != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          l10n.feedCommentReplyingTo(
-                            _replyingTo!.authorUsername ?? l10n.feedUnknownUser,
-                          ),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _cancelReply,
-                        icon: const Icon(Icons.close, size: 16),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ],
-                  ),
-                ),
-              if (_selectedImageBytes.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: SizedBox(
-                    height: 64,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _selectedImageBytes.length,
-                      separatorBuilder: (context, index) => const SizedBox(width: 6),
-                      itemBuilder: (context, index) {
-                        return Stack(
-                          alignment: Alignment.topRight,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.memory(
-                                _selectedImageBytes[index],
-                                width: 56,
-                                height: 56,
-                                fit: BoxFit.cover,
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_replyingTo != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              l10n.feedCommentReplyingTo(
+                                _replyingTo!.authorUsername ?? l10n.feedUnknownUser,
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
-                            GestureDetector(
-                              onTap: () => _removeImageAt(index),
-                              child: const CircleAvatar(
-                                radius: 8,
-                                backgroundColor: Colors.black54,
-                                child: Icon(Icons.close, size: 10, color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              if (_selectedVideo != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.videocam, size: 20),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _selectedVideo!.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _removeVideo,
-                        icon: const Icon(Icons.close, size: 16),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ],
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: _sending ? null : _pickImages,
-                      icon: const Icon(Icons.image_outlined),
-                      tooltip: l10n.feedCommentAttachImageButton,
-                    ),
-                    IconButton(
-                      onPressed: _sending ? null : _pickVideo,
-                      icon: const Icon(Icons.videocam_outlined),
-                      tooltip: l10n.feedCommentAttachVideoButton,
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _inputController,
-                        focusNode: _inputFocusNode,
-                        decoration: InputDecoration(
-                          hintText: _replyingTo != null
-                              ? l10n.feedCommentReplyInputHint
-                              : l10n.feedCommentInputHint,
-                          border: const OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        minLines: 1,
-                        maxLines: 3,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _sending
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : IconButton(
-                            onPressed: _handleSend,
-                            icon: const Icon(Icons.send),
-                            tooltip: l10n.feedCommentSendButton,
                           ),
-                  ],
-                ),
+                          IconButton(
+                            onPressed: _cancelReply,
+                            icon: const Icon(Icons.close, size: 16),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_selectedImageBytes.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: SizedBox(
+                        height: 64,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _selectedImageBytes.length,
+                          separatorBuilder: (context, index) => const SizedBox(width: 6),
+                          itemBuilder: (context, index) {
+                            return Stack(
+                              alignment: Alignment.topRight,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    _selectedImageBytes[index],
+                                    width: 56,
+                                    height: 56,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () => _removeImageAt(index),
+                                  child: const CircleAvatar(
+                                    radius: 8,
+                                    backgroundColor: Colors.black54,
+                                    child: Icon(Icons.close, size: 10, color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  if (_selectedVideo != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.videocam, size: 20),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _selectedVideo!.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _removeVideo,
+                            icon: const Icon(Icons.close, size: 16),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: _sending ? null : _pickImages,
+                          icon: const Icon(Icons.image_outlined),
+                          tooltip: l10n.feedCommentAttachImageButton,
+                        ),
+                        IconButton(
+                          onPressed: _sending ? null : _pickVideo,
+                          icon: const Icon(Icons.videocam_outlined),
+                          tooltip: l10n.feedCommentAttachVideoButton,
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _inputController,
+                            focusNode: _inputFocusNode,
+                            decoration: InputDecoration(
+                              hintText: _replyingTo != null
+                                  ? l10n.feedCommentReplyInputHint
+                                  : l10n.feedCommentInputHint,
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            minLines: 1,
+                            maxLines: 3,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _sending
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : IconButton(
+                                onPressed: _handleSend,
+                                icon: const Icon(Icons.send),
+                                tooltip: l10n.feedCommentSendButton,
+                              ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );

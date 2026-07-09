@@ -288,7 +288,12 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              padding: EdgeInsets.only(
+                left: 8,
+                right: 8,
+                top: 6,
+                bottom: 6 + MediaQuery.of(context).viewInsets.bottom,
+              ),
               child: Row(
                 children: [
                   IconButton(
