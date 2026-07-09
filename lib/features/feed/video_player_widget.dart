@@ -12,6 +12,10 @@ class _VideoControllerCache {
   static final Map<String, VideoPlayerController> _pool = {};
   static final List<String> _order = [];
 
+  /// キャッシュから追い出されて破棄された動画も含め、直近の再生位置を覚えておく
+  /// （スクロールで再び画面内に戻った際、その位置から再生を再開するため）。
+  static final Map<String, Duration> _lastPositions = {};
+
   static VideoPlayerController? take(String playbackId) {
     final controller = _pool.remove(playbackId);
     if (controller == null) return null;
@@ -19,7 +23,12 @@ class _VideoControllerCache {
     return controller;
   }
 
+  static Duration? lastPosition(String playbackId) => _lastPositions[playbackId];
+
   static void put(String playbackId, VideoPlayerController controller) {
+    if (controller.value.isInitialized) {
+      _lastPositions[playbackId] = controller.value.position;
+    }
     _pool[playbackId] = controller;
     _order
       ..remove(playbackId)
@@ -84,6 +93,12 @@ class _MuxVideoPlayerWidgetState extends State<MuxVideoPlayerWidget> {
   Future<void> _initialize(VideoPlayerController controller) async {
     if (!controller.value.isInitialized) {
       await controller.initialize();
+      // キャッシュに残っていた場合はコントローラー自体が再生位置を保持しているが、
+      // キャッシュ上限超過等で一度破棄された動画は、新規コントローラーへ最後の再生位置を復元する。
+      final remembered = _VideoControllerCache.lastPosition(widget.playbackId);
+      if (remembered != null && remembered > Duration.zero) {
+        await controller.seekTo(remembered);
+      }
     }
     if (!mounted || controller != _controller) return;
     if (widget.isPreview) {
