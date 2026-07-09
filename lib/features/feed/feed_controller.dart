@@ -137,6 +137,7 @@ final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
       .from('posts')
       .select(
         'id, body, created_at, author_id, media_type, media_urls, post_type, staked_tp, '
+        'domain_labels, '
         'external_video_url, external_video_provider, external_video_id, '
         'profiles(username, intellect_percentile), '
         'videos(status, mux_playback_id, thumbnail_url), '
@@ -212,15 +213,41 @@ class FeedController {
       throw ArgumentError('投稿内容を入力してください');
     }
 
-    await supabase.from('posts').insert({
-      'author_id': authorId,
-      'body': trimmed,
-      'media_type': containsYoutubeUrl(trimmed) ? 'youtube_embed' : 'text',
-      ..._youtubeFields(trimmed),
-    });
+    final row = await supabase
+        .from('posts')
+        .insert({
+          'author_id': authorId,
+          'body': trimmed,
+          'media_type': containsYoutubeUrl(trimmed) ? 'youtube_embed' : 'text',
+          ..._youtubeFields(trimmed),
+        })
+        .select('id')
+        .single();
 
     ref.invalidate(feedPostsProvider);
+    _labelPostDomain(row['id'] as String, trimmed);
     await _logPostCreated('text');
+  }
+
+  /// design/system.md 6.1節「ドメインラベリング」。投稿本文をGeminiで分類し
+  /// posts.domain_labels に反映する（Discoverページでのドメイン別表示に使う）。
+  /// ベストエフォートのため失敗しても投稿作成自体には影響させない。
+  void _labelPostDomain(String postId, String body) {
+    if (body.trim().length < 20) return;
+    // ignore: discarded_futures
+    _invokeLabelPostDomain(postId, body);
+  }
+
+  Future<void> _invokeLabelPostDomain(String postId, String body) async {
+    try {
+      await supabase.functions.invoke(
+        'label_post_domain',
+        body: {'post_id': postId, 'text': body},
+      );
+    } catch (error) {
+      // ignore: avoid_print
+      print('label_post_domain failed: $error');
+    }
   }
 
   /// design/system.md 5.3節。本文からYouTube URLを検出し、`posts` に保存する
@@ -255,14 +282,20 @@ class FeedController {
     required String body,
     required String imageUrl,
   }) async {
-    await supabase.from('posts').insert({
-      'author_id': authorId,
-      'body': body.trim(),
-      'media_type': 'image',
-      'media_urls': [imageUrl],
-    });
+    final trimmedBody = body.trim();
+    final row = await supabase
+        .from('posts')
+        .insert({
+          'author_id': authorId,
+          'body': trimmedBody,
+          'media_type': 'image',
+          'media_urls': [imageUrl],
+        })
+        .select('id')
+        .single();
 
     ref.invalidate(feedPostsProvider);
+    _labelPostDomain(row['id'] as String, trimmedBody);
     await _logPostCreated('image');
   }
 
@@ -281,7 +314,12 @@ class FeedController {
         .single();
 
     ref.invalidate(feedPostsProvider);
-    return row['id'] as String;
+    final postId = row['id'] as String;
+    final trimmedBody = body.trim();
+    if (trimmedBody.isNotEmpty) {
+      _labelPostDomain(postId, trimmedBody);
+    }
+    return postId;
   }
 
   /// design/product.md 3.4節「ステーキング・ツイート: 投稿時にTPを賭ける」。

@@ -347,6 +347,18 @@
   },
 
   "battleListAppBarTitle": "Battle — Logic Check",
+  "battleInfoTooltip": "What is Logic Check?",
+  "battleInfoSheetTitle": "What is a Logic Check (challenge battle)?",
+  "battleInfoSheetIntro": "A way to openly verify whether a post's claim actually holds up, through a TP-staked counter-post and audience judging.",
+  "battleInfoSheetStep1Title": "1. Challenge",
+  "battleInfoSheetStep1Body": "If you disagree with a post's claim, you can stake TP to create a counter-post, which is structured as a paired battle against the original post.",
+  "battleInfoSheetStep2Title": "2. Audience betting",
+  "battleInfoSheetStep2Body": "Other users can bet TP on which side is more logically sound. Correct bets earn a payout, but TP is an internal point that cannot be cashed out.",
+  "battleInfoSheetStep3Title": "3. Judging",
+  "battleInfoSheetStep3Body": "Over a set window (roughly 24–72 hours), audience votes and top-tier judges decide the winner.",
+  "battleInfoSheetStep4Title": "4. Broken-logic penalty",
+  "battleInfoSheetStep4Body": "If enough top-5% judges flag a post as \"broken logic,\" it gets a warning badge and stops spreading (the post itself is not deleted). To prevent false positives, this requires a minimum quorum of judges and includes an appeal process.",
+  "battleInfoSheetClose": "Close",
   "battleTabActive": "Active",
   "battleTabResolved": "Resolved",
   "battleListEmptyActive": "No active battles",
@@ -388,6 +400,7 @@
   },
 
   "battleDetailAppBarTitle": "Battle Detail",
+  "battleDetailIntro": "Compare the two posts below to see which claim is more logically sound. The audience can bet TP to take part in the judging.",
   "battleResolvesAtLabel": "Resolves at: {dateTime}",
   "@battleResolvesAtLabel": {
     "placeholders": {
@@ -439,6 +452,9 @@
   "settingsAppBarTitle": "Settings",
   "settingsAccountSectionTitle": "Account",
   "settingsEmailLabel": "Email",
+  "settingsEmailRowSubtitle": "View your registered email address",
+  "settingsEmailPageTitle": "Email Address",
+  "settingsEmailPageDescription": "This is the email address you use to sign in.",
   "settingsLogoutButton": "Log out",
   "settingsLogoutConfirmTitle": "Log out",
   "settingsLogoutConfirmMessage": "Are you sure you want to log out?",

@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../quiz/quiz_controller.dart';
+import '../discover/discover_controller.dart' show domainDisplayLabel;
 import 'comments_sheet.dart';
 import 'feed_controller.dart';
+import 'fullscreen_media_viewer.dart';
 import 'intellect_badge.dart';
+import 'media_carousel.dart';
 import 'native_ad_tile.dart';
 import 'post.dart';
 import 'video_player_widget.dart';
@@ -200,6 +204,10 @@ class _PostTile extends ConsumerStatefulWidget {
 class _PostTileState extends ConsumerState<_PostTile> {
   YoutubePlayerController? _youtubeController;
 
+  /// design/product.md 3.13節「動画の自動再生（スクロールイン）」。
+  /// 動画が画面内に一定割合入っている間だけtrueにし、ミュート自動再生する。
+  bool _videoVisible = false;
+
   Post get post => widget.post;
 
   @override
@@ -264,6 +272,26 @@ class _PostTileState extends ConsumerState<_PostTile> {
     );
   }
 
+  /// design/product.md 3.13節「タップで全画面表示」。共通の全画面メディアビューアを開く。
+  void _openFullscreenImage(List<String> imageUrls, int index) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FullscreenMediaViewer(
+          imageUrls: imageUrls,
+          initialImageIndex: index,
+        ),
+      ),
+    );
+  }
+
+  void _openFullscreenVideo(String playbackId) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FullscreenMediaViewer(videoPlaybackId: playbackId),
+      ),
+    );
+  }
+
   /// design/product.md 3.12節「共有」。OS標準の共有シートを開く。
   Future<void> _handleShare() async {
     final buffer = StringBuffer(post.body);
@@ -277,8 +305,8 @@ class _PostTileState extends ConsumerState<_PostTile> {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = post.mediaType == 'image' && (post.mediaUrls?.isNotEmpty ?? false)
-        ? post.mediaUrls!.first
+    final imageUrls = post.mediaType == 'image' && (post.mediaUrls?.isNotEmpty ?? false)
+        ? post.mediaUrls!
         : null;
     final l10n = AppLocalizations.of(context);
 
@@ -363,29 +391,28 @@ class _PostTileState extends ConsumerState<_PostTile> {
             ),
             const SizedBox(height: 12),
           ],
-          // Image media
-          if (imageUrl != null) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                imageUrl,
-                height: 240,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => SizedBox(
-                  height: 120,
-                  width: double.infinity,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(l10n.feedImageLoadError),
-                    ),
-                  ),
-                ),
-              ),
+          // design/system.md 6.1節「ドメインラベリング」。AIが自動付与した産業分類タグ。
+          if (post.domainLabels != null && post.domainLabels!.isNotEmpty) ...[
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: post.domainLabels!.map((label) {
+                return Chip(
+                  avatar: const Icon(Icons.auto_awesome, size: 14),
+                  label: Text(domainDisplayLabel(label), style: const TextStyle(fontSize: 11)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+          ],
+          // Image media（design/product.md 3.13節: 複数画像は横スクロール＋ドットインジケーター）
+          if (imageUrls != null) ...[
+            ImageCarousel(
+              imageUrls: imageUrls,
+              onTapImage: (index) => _openFullscreenImage(imageUrls, index),
             ),
             const SizedBox(height: 12),
           ],
@@ -397,17 +424,35 @@ class _PostTileState extends ConsumerState<_PostTile> {
             ),
             const SizedBox(height: 12),
           ],
-          // Mux video player
+          // Mux video player（design/product.md 3.13節: スクロールイン自動再生・全画面表示）
           if (post.mediaType == 'video') ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: post.videoStatus == 'ready' && post.videoPlaybackId != null
-                  ? MuxVideoPlayerWidget(playbackId: post.videoPlaybackId!)
-                  : VideoProcessingPlaceholder(
+            post.videoStatus == 'ready' && post.videoPlaybackId != null
+                ? VisibilityDetector(
+                    key: ValueKey('video-visibility-${post.id}'),
+                    onVisibilityChanged: (info) {
+                      final visible = info.visibleFraction > 0.6;
+                      if (visible != _videoVisible && mounted) {
+                        setState(() => _videoVisible = visible);
+                      }
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: MuxVideoPlayerWidget(
+                        playbackId: post.videoPlaybackId!,
+                        autoPlay: _videoVisible,
+                        isPreview: true,
+                        showFullscreenButton: true,
+                        onFullscreenTap: () => _openFullscreenVideo(post.videoPlaybackId!),
+                      ),
+                    ),
+                  )
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: VideoProcessingPlaceholder(
                       thumbnailUrl: post.videoThumbnailUrl,
                       status: post.videoStatus ?? 'pending',
                     ),
-            ),
+                  ),
             const SizedBox(height: 12),
           ],
           // Action bar: Like, Comment, Repost, Share

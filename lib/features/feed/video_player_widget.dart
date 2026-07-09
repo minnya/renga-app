@@ -6,25 +6,82 @@ import 'package:video_player/video_player.dart';
 /// Mux専用SDKへの依存を避け、標準的なHLS再生（`video_player`）で
 /// `https://stream.mux.com/{playbackId}.m3u8` を直接再生する。
 class MuxVideoPlayerWidget extends StatefulWidget {
-  const MuxVideoPlayerWidget({super.key, required this.playbackId});
+  const MuxVideoPlayerWidget({
+    super.key,
+    required this.playbackId,
+    this.autoPlay = false,
+    this.isPreview = true,
+    this.showFullscreenButton = false,
+    this.onFullscreenTap,
+  });
 
   final String playbackId;
+
+  /// trueならスクロールイン等のタイミングでミュート自動再生する。
+  final bool autoPlay;
+
+  /// trueはフィード内軽量プレビュー扱い（ミュート・ループ）、
+  /// falseは全画面フル品質（ミュート解除・シークバー操作を主体）。
+  final bool isPreview;
+
+  final bool showFullscreenButton;
+  final VoidCallback? onFullscreenTap;
 
   @override
   State<MuxVideoPlayerWidget> createState() => _MuxVideoPlayerWidgetState();
 }
 
 class _MuxVideoPlayerWidgetState extends State<MuxVideoPlayerWidget> {
-  late final VideoPlayerController _controller;
-  late final Future<void> _initializeFuture;
+  late VideoPlayerController _controller;
+  late Future<void> _initializeFuture;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(
+    _controller = _createController();
+    _initializeFuture = _initialize(_controller);
+  }
+
+  VideoPlayerController _createController() {
+    return VideoPlayerController.networkUrl(
       Uri.parse('https://stream.mux.com/${widget.playbackId}.m3u8'),
     );
-    _initializeFuture = _controller.initialize();
+  }
+
+  Future<void> _initialize(VideoPlayerController controller) async {
+    await controller.initialize();
+    if (!mounted || controller != _controller) return;
+    if (widget.isPreview) {
+      await controller.setLooping(true);
+      await controller.setVolume(0);
+    } else {
+      await controller.setVolume(1);
+    }
+    if (widget.autoPlay) {
+      await controller.play();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant MuxVideoPlayerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.playbackId != oldWidget.playbackId) {
+      final oldController = _controller;
+      final newController = _createController();
+      setState(() {
+        _controller = newController;
+        _initializeFuture = _initialize(newController);
+      });
+      oldController.dispose();
+      return;
+    }
+    if (widget.autoPlay != oldWidget.autoPlay) {
+      if (widget.autoPlay) {
+        _controller.play();
+      } else {
+        _controller.pause();
+      }
+    }
   }
 
   @override
@@ -57,7 +114,38 @@ class _MuxVideoPlayerWidgetState extends State<MuxVideoPlayerWidget> {
             children: [
               VideoPlayer(_controller),
               _PlayPauseOverlay(controller: _controller),
-              VideoProgressIndicator(_controller, allowScrubbing: true),
+              if (!widget.isPreview)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: VideoProgressIndicator(
+                    _controller,
+                    allowScrubbing: true,
+                    padding: EdgeInsets.zero,
+                    colors: const VideoProgressColors(
+                      playedColor: Colors.white,
+                      bufferedColor: Colors.white24,
+                      backgroundColor: Colors.white12,
+                    ),
+                  ),
+                ),
+              if (widget.showFullscreenButton)
+                Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: Material(
+                    color: Colors.black45,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      icon: const Icon(Icons.fullscreen, color: Colors.white, size: 20),
+                      onPressed: widget.onFullscreenTap,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: EdgeInsets.zero,
+                      splashRadius: 20,
+                    ),
+                  ),
+                ),
             ],
           ),
         );

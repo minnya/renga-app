@@ -74,8 +74,8 @@ class _BattleListView extends StatelessWidget {
       return ListView(
         children: [
           Padding(
-            padding: const EdgeInsets.all(32),
-            child: Center(child: Text(emptyMessage)),
+            padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
+            child: _BattleEmptyPlaceholder(emptyMessage: emptyMessage),
           ),
         ],
       );
@@ -86,6 +86,67 @@ class _BattleListView extends StatelessWidget {
       itemCount: battles.length,
       separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) => _BattleCard(battle: battles[index]),
+    );
+  }
+}
+
+/// design/product.md 3.4節・3.6節・3.7節「ステーキングとロジックチェック」「デマ対策・拡散抑止」
+/// 「3ストライク・累積ペナルティ」の要旨を、バトルがまだ無いときの空状態プレースホルダとして表示する。
+/// 別ページ・別シートは設けず、データが無い箇所にそのまま説明文を差し込む。
+class _BattleEmptyPlaceholder extends StatelessWidget {
+  const _BattleEmptyPlaceholder({required this.emptyMessage});
+
+  final String emptyMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Text(
+            emptyMessage,
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(l10n.battleInfoSheetTitle, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text(
+          l10n.battleInfoSheetIntro,
+          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 20),
+        _BattleInfoStep(title: l10n.battleInfoSheetStep1Title, body: l10n.battleInfoSheetStep1Body),
+        _BattleInfoStep(title: l10n.battleInfoSheetStep2Title, body: l10n.battleInfoSheetStep2Body),
+        _BattleInfoStep(title: l10n.battleInfoSheetStep3Title, body: l10n.battleInfoSheetStep3Body),
+        _BattleInfoStep(title: l10n.battleInfoSheetStep4Title, body: l10n.battleInfoSheetStep4Body),
+      ],
+    );
+  }
+}
+
+class _BattleInfoStep extends StatelessWidget {
+  const _BattleInfoStep({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(body, style: Theme.of(context).textTheme.bodyMedium),
+        ],
+      ),
     );
   }
 }

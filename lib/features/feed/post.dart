@@ -22,6 +22,7 @@ class Post {
     this.videoStatus,
     this.videoPlaybackId,
     this.videoThumbnailUrl,
+    this.domainLabels,
   });
 
   final String id;
@@ -67,6 +68,10 @@ class Post {
   /// design/system.md 5.2節。処理中プレースホルダー等に使うサムネイルURL。
   final String? videoThumbnailUrl;
 
+  /// design/system.md 6.1節「ドメインラベリング」。`label_post_domain` Edge Functionが
+  /// 投稿本文から自動付与した産業分類ラベル（日本標準産業分類の大分類キー、最大3件）。
+  final List<String>? domainLabels;
+
   /// design/product.md 4章「上位25%/5%知能バッジ」判定用。値が小さいほど上位を表す
   /// （例: 上位5% → `intellect_percentile <= 5`）。スコアリングパイプライン未実装のため
   /// 現状は全ユーザーで`0`のまま。
@@ -86,6 +91,11 @@ class Post {
     final rawMediaUrls = map['media_urls'];
     final mediaUrls = rawMediaUrls is List
         ? rawMediaUrls.map((e) => e as String).toList()
+        : null;
+
+    final rawDomainLabels = map['domain_labels'];
+    final domainLabels = rawDomainLabels is List && rawDomainLabels.isNotEmpty
+        ? rawDomainLabels.map((e) => e as String).toList()
         : null;
 
     // `videos` は1投稿につき最大1本の想定（system.md 1章補足）。ネストselectは
@@ -118,6 +128,7 @@ class Post {
       videoStatus: video?['status'] as String?,
       videoPlaybackId: video?['mux_playback_id'] as String?,
       videoThumbnailUrl: video?['thumbnail_url'] as String?,
+      domainLabels: domainLabels,
     );
   }
 

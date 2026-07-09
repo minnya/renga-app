@@ -49,6 +49,13 @@ class _BattleDetailBody extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        Text(
+          l10n.battleDetailIntro,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Chip(label: Text(battle.isActive ? l10n.battleTabActive : l10n.battleTabResolved)),

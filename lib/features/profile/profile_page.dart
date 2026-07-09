@@ -275,7 +275,7 @@ class _SignedInProfileView extends ConsumerWidget {
       children: [
         _buildStatItem(
           label: l10n.profileScoreInfluence,
-          score: '$influenceScore',
+          score: _formatScoreOutOfTen(influencePercentile),
           percentile: '$influencePercentile%',
           theme: theme,
           accentColor: RengaColors.influence,
@@ -287,13 +287,19 @@ class _SignedInProfileView extends ConsumerWidget {
         ),
         _buildStatItem(
           label: l10n.profileScoreIntellect,
-          score: '$intellectScore',
+          score: _formatScoreOutOfTen(intellectPercentile),
           percentile: '$intellectPercentile%',
           theme: theme,
           accentColor: RengaColors.intellect,
         ),
       ],
     );
+  }
+
+  /// パーセンタイル(0-100)を0.0〜10.0・小数第1位のスコア表示に正規化する。
+  String _formatScoreOutOfTen(dynamic percentile) {
+    final value = percentile is num ? percentile : num.tryParse('$percentile') ?? 0;
+    return ((value / 100) * 10).toStringAsFixed(1);
   }
 
   Widget _buildStatItem({

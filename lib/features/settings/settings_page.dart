@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show User;
 
-import '../../core/auth_state.dart';
 import '../../core/supabase_client.dart';
 import '../../l10n/gen/app_localizations.dart';
 
@@ -20,7 +18,6 @@ class SettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentUser = ref.watch(currentUserProvider);
     final localization = AppLocalizations.of(context);
 
     return Scaffold(
@@ -29,7 +26,7 @@ class SettingsPage extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          _AccountSection(user: currentUser),
+          const _AccountSection(),
           const Divider(height: 24),
           const _NotificationSection(),
           const Divider(height: 24),
@@ -41,11 +38,9 @@ class SettingsPage extends ConsumerWidget {
   }
 }
 
-/// セクション1: アカウント（ログイン中のメール表示、各サブページへの導線、ログアウトボタン）
+/// セクション1: アカウント（各サブページへの導線、ログアウトボタン）
 class _AccountSection extends ConsumerWidget {
-  final User? user;
-
-  const _AccountSection({required this.user});
+  const _AccountSection();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,32 +58,16 @@ class _AccountSection extends ConsumerWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              border: Border.all(color: theme.colorScheme.outline),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  localization.settingsEmailLabel,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  user?.email ?? 'Not logged in',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 4),
+          // design/product.md 3.11節: メールアドレス自体はここには表示せず、
+          // 専用サブページ（/settings/email）でのみ確認できるようにする。
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(localization.settingsEmailLabel),
+            subtitle: Text(localization.settingsEmailRowSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/email'),
+          ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(localization.profileEditProfileButton),

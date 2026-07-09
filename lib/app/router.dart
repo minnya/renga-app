@@ -19,6 +19,7 @@ import '../features/quiz/quiz_controller.dart';
 import '../features/quiz/quiz_page.dart';
 import '../features/settings/delete_account_page.dart';
 import '../features/settings/display_settings_page.dart';
+import '../features/settings/email_page.dart';
 import '../features/settings/language_settings_page.dart';
 import '../features/settings/password_change_page.dart';
 import '../features/settings/profile_edit_page.dart';
@@ -169,6 +170,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         // design/product.md 3.11節: Settings画面自体は設定項目への遷移リストのみを表示し、
         // 各行のタップで専用のサブページへ`push`する。
         routes: [
+          GoRoute(
+            path: 'email',
+            pageBuilder: (context, state) => _fadeSlidePage(context, state, const EmailPage()),
+          ),
           GoRoute(
             path: 'profile',
             pageBuilder: (context, state) => _fadeSlidePage(context, state, const ProfileEditPage()),
