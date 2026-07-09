@@ -83,6 +83,7 @@ create table public.posts (
   logic_verdict text not null default 'unverified', -- unverified | endorsed | flagged_broken
   broken_logic_score numeric not null default 0,
   reach_score numeric not null default 0, -- 拡散スコア（flagged時に0へ）
+  quoted_post_id uuid references public.posts(id), -- product.md 3.12節「引用リポスト」。引用元投稿（nullなら通常投稿）
   created_at timestamptz not null default now()
 );
 
@@ -113,6 +114,11 @@ create table public.reposts (
   unique(post_id, user_id)
 );
 -- RLS: select全公開 + insert-own + delete-own（un-repost用）。3.12節「基本エンゲージメント機能」参照。
+-- 「引用リポスト（コメント付き再共有）」は本テーブルではなく、`posts.quoted_post_id`を
+-- セットした通常の`posts` insertとして表現する（X同様、単純リポストと引用リポストは別経路）。
+-- 単純リポスト（`reposts` insert、引用なし）と引用リポスト（`posts.quoted_post_id`）は
+-- 独立に成立し、UI上はリポストアイコンタップ時のボトムシートでどちらかを選択する
+-- （3.12節）。
 
 -- いいね（基本エンゲージメント機能。3.12節）
 create table public.likes (
@@ -371,7 +377,7 @@ create table public.moderation_checks (
 
 | Supabase機能 | 用途 |
 |---|---|
-| **Auth** | メール/パスワード + Google Sign-In（OAuth）、`auth.users` と `profiles` の1:1連携（トリガーで自動作成） |
+| **Auth** | メール/パスワード + Google Sign-In（OAuth）、`auth.users` と `profiles` の1:1連携（トリガーで自動作成）。`profiles.profile_completed` でGoogle新規登録直後の未入力状態を判定し、未完了ユーザーは`/complete-profile`へ強制遷移させる（後述） |
 | **Postgres + RLS** | 全データの永続化。RLSで「本人のみ更新可」「公開読み取り可」等を制御 |
 | **Edge Functions** | (1) AIドメインラベリング（Gemini API呼び出し） (2) クイズ自動生成・マルチエージェント検証パイプライン（6章） (3) スコア再計算バッチ (4) ロジックチェック/ベット精算 (5) ストライク判定・実行 (6) 不正検知 (7) FCMプッシュ通知送信 (8) Mux Direct Upload URL発行・Mux Webhook受信（5章） (9) UGCモデレーション（画像/動画/テキストの自動チェック、13章） |
 | **pg_cron / Scheduled Functions** | パーセンタイル再計算（30分毎）、平均値キャッシュ再計算・日次スコアスナップショット記録（`recalculate_score_stats()`/`snapshot_daily_scores()`、1日1回）、バトル解決（`resolves_at` 到達時の精算）、デイリーミッションのリセット、クイズ問題プールの自動補充 |
@@ -469,6 +475,7 @@ Twitter的に動画を手軽に共有できることを実現するため、動�
 - サムネイル: `https://image.mux.com/{playback_id}/thumbnail.jpg` をフィードのプレビュー画像として使用。
 - **プリロード**: フィード一覧の`ListView`は`cacheExtent`を画面サイズの2倍に設定し、実際に画面内に表示される前（スクロールで画面2枚分手前の位置に入った時点）で写真・動画のロードを開始する。動画の自動再生・一時停止は引き続き`VisibilityDetector`による実際の可視判定（可視率60%超）でのみ制御し、プリロードのタイミングとは分離する。
 - **キャッシュ**: 画像は`cached_network_image`によりディスクキャッシュされ、一度表示した画像は再ダウンロードしない。動画は`VideoPlayerController`をplaybackId単位でLRUキャッシュ（直近6件）し、画面外に出てもすぐには破棄せず、再スクロールで戻った際に再初期化なしで再生を継続する。
+- **再生位置の記憶**: 一度再生された動画は最後の再生位置をplaybackId単位で記録し、キャッシュ上限超過等でコントローラーが一度破棄された後も、再度画面内に戻った際は最後の再生位置から再生を再開する（ゼロ秒に巻き戻らない）。
 
 ### 5.3 YouTube埋め込み・共有連携
 
