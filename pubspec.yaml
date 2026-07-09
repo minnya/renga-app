@@ -60,6 +60,8 @@ dependencies:
   share_plus: ^13.2.0
   visibility_detector: ^0.4.0+2
   cached_network_image: ^3.4.1
+  # プロフィール画面のIntellect(IQ)/Influence推移グラフ表示に使用（design/product.md 3.10節）。
+  fl_chart: ^0.69.2
 
 dev_dependencies:
   flutter_test:

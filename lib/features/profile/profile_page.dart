@@ -7,11 +7,13 @@ import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../shared/info_bottom_sheet.dart';
 import '../../shared/iq_format.dart';
+import '../../shared/score_format.dart';
 import '../feed/fullscreen_media_viewer.dart';
 import '../feed/intellect_badge.dart';
 import '../messages/messages_controller.dart';
 import 'profile_controller.dart';
 import 'profile_edit_sheet.dart';
+import 'score_history_chart_sheet.dart';
 
 /// プロフィール表示・編集画面。
 ///
@@ -104,6 +106,10 @@ class _SignedInProfileView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final profileAsync = ref.watch(profileProvider(userId));
+    // design/system.md 2章「平均値・日次推移」。読み込み中/失敗時は比較表示を省略するだけで
+    // メイン表示をブロックしないよう、値のみ(.value)を参照する。
+    final scoreStats = ref.watch(scoreStatsProvider).value;
+    final scoreHistory = ref.watch(scoreHistoryProvider(userId)).value ?? const [];
     final theme = Theme.of(context);
 
     return profileAsync.when(
@@ -144,6 +150,8 @@ class _SignedInProfileView extends ConsumerWidget {
                   influencePercentile,
                   intellectScore,
                   intellectPercentile,
+                  scoreStats,
+                  scoreHistory,
                   l10n,
                   theme,
                 ),
@@ -315,9 +323,54 @@ class _SignedInProfileView extends ConsumerWidget {
     dynamic influencePercentile,
     dynamic intellectScore,
     dynamic intellectPercentile,
+    Map<String, dynamic>? scoreStats,
+    List<Map<String, dynamic>> scoreHistory,
     AppLocalizations l10n,
     ThemeData theme,
   ) {
+    final influencePercentileNum =
+        influencePercentile is num ? influencePercentile : num.tryParse('$influencePercentile') ?? 0;
+    final intellectPercentileNum = intellectPercentile is num ? intellectPercentile : null;
+
+    // design/system.md 2章「平均値・日次推移」。score_stats(全ユーザー平均のキャッシュ)との差分。
+    final avgIntellectIq = (scoreStats?['avg_intellect_iq'] as num?)?.toDouble();
+    final ownIq = intellectIqScore(intellectPercentileNum);
+    final intellectVsAverageText = (avgIntellectIq != null && ownIq != null)
+        ? l10n.profileScoreVsAverage(formatSignedDiff(ownIq - avgIntellectIq))
+        : null;
+
+    final avgInfluencePercentile = (scoreStats?['avg_influence_percentile'] as num?)?.toDouble();
+    // パーセンタイルは値が小さいほど上位のため、「平均 - 自分」が正なら平均より上位。
+    final influenceVsAverageText = avgInfluencePercentile != null
+        ? l10n.profileScoreVsAverage(
+            formatSignedDiff(avgInfluencePercentile - influencePercentileNum),
+          )
+        : null;
+
+    // design/system.md 2章「日次推移」。直近のuser_score_historyスナップショットとの比較（前日比）。
+    final latestHistory = scoreHistory.isNotEmpty ? scoreHistory.last : null;
+    final previousInfluencePercentile = (latestHistory?['influence_percentile'] as num?)?.toDouble();
+    final influenceDayOverDayText = previousInfluencePercentile != null
+        ? l10n.profileScoreDayOverDay(
+            formatSignedDiff(previousInfluencePercentile - influencePercentileNum),
+          )
+        : null;
+
+    final influenceHistoryPoints = [
+      for (final row in scoreHistory)
+        ScoreHistoryPoint(
+          date: DateTime.parse('${row['snapshot_date']}'),
+          value: ((row['influence_percentile'] as num?)?.toDouble() ?? 0) / 100 * 10,
+        ),
+    ];
+    final intellectHistoryPoints = [
+      for (final row in scoreHistory)
+        ScoreHistoryPoint(
+          date: DateTime.parse('${row['snapshot_date']}'),
+          value: intellectIqScore((row['intellect_percentile'] as num?))?.toDouble() ?? 100,
+        ),
+    ];
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -325,9 +378,19 @@ class _SignedInProfileView extends ConsumerWidget {
           label: l10n.profileScoreInfluence,
           score: _formatScoreOutOfTen(influencePercentile),
           percentile: '$influencePercentile%',
+          vsAverageText: influenceVsAverageText,
+          dayOverDayText: influenceDayOverDayText,
           theme: theme,
           accentColor: RengaColors.influence,
-          onTap: () => showInfoBottomSheet(
+          onTap: () => showScoreHistorySheet(
+            context,
+            title: l10n.profileScoreHistoryTitle(l10n.profileScoreInfluence),
+            points: influenceHistoryPoints,
+            average: (avgInfluencePercentile ?? 50) / 100 * 10,
+            color: RengaColors.influence,
+            valueFormatter: (value) => value.toStringAsFixed(1),
+          ),
+          onInfoTap: () => showInfoBottomSheet(
             context,
             icon: Icons.trending_up,
             color: RengaColors.influence,
@@ -345,9 +408,19 @@ class _SignedInProfileView extends ConsumerWidget {
           label: l10n.profileScoreIntellect,
           score: _formatIq(intellectPercentile),
           percentile: '$intellectPercentile%',
+          vsAverageText: intellectVsAverageText,
+          dayOverDayText: null,
           theme: theme,
           accentColor: RengaColors.intellect,
-          onTap: () => showInfoBottomSheet(
+          onTap: () => showScoreHistorySheet(
+            context,
+            title: l10n.profileScoreHistoryTitle(l10n.profileScoreIntellect),
+            points: intellectHistoryPoints,
+            average: avgIntellectIq ?? 100,
+            color: RengaColors.intellect,
+            valueFormatter: (value) => value.round().toString(),
+          ),
+          onInfoTap: () => showInfoBottomSheet(
             context,
             icon: Icons.psychology,
             color: RengaColors.intellect,
@@ -374,13 +447,19 @@ class _SignedInProfileView extends ConsumerWidget {
     return iq?.toString() ?? '--';
   }
 
+  /// design/product.md 3.10節「平均値との比較・前日比の表示」「推移グラフ」。
+  /// タップ（[onTap]）で `user_score_history` の推移グラフを開き、ラベル横の infoアイコン
+  /// （[onInfoTap]）で従来通りの算出方法の説明ボトムシートを開く。
   Widget _buildStatItem({
     required String label,
     required String score,
     required String percentile,
+    String? vsAverageText,
+    String? dayOverDayText,
     required ThemeData theme,
     required Color accentColor,
     required VoidCallback onTap,
+    required VoidCallback onInfoTap,
   }) {
     return Expanded(
       child: GestureDetector(
@@ -395,7 +474,23 @@ class _SignedInProfileView extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(label, style: theme.textTheme.bodySmall),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: theme.textTheme.bodySmall),
+                GestureDetector(
+                  onTap: onInfoTap,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 2),
+                    child: Icon(
+                      Icons.info_outline,
+                      size: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 4),
             Text(
               percentile,
@@ -403,6 +498,20 @@ class _SignedInProfileView extends ConsumerWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (vsAverageText != null)
+              Text(
+                vsAverageText,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            if (dayOverDayText != null)
+              Text(
+                dayOverDayText,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
           ],
         ),
       ),
