@@ -77,12 +77,13 @@ create table public.posts (
   external_video_url text, -- YouTube等の外部動画URL（原文のまま保持）
   external_video_provider text, -- youtube 等
   external_video_id text, -- YouTube動画ID（埋め込み再生用に抽出したもの）
-  post_type text not null default 'normal', -- normal | staked | battle_challenge
+  post_type text not null default 'normal', -- normal | staked（旧 battle_challenge は真偽投票への一本化に伴い廃止）
+  context text not null default 'feed', -- feed | discover。投稿がどの画面のCreate権限で作られたか（2.1節）。Discoverでの新規投稿はcontext='discover'
   staked_tp numeric not null default 0,
-  domain_labels text[] not null default '{}', -- AIが自動付与
-  logic_verdict text not null default 'unverified', -- unverified | endorsed | flagged_broken
-  broken_logic_score numeric not null default 0,
-  reach_score numeric not null default 0, -- 拡散スコア（flagged時に0へ）
+  domain_labels text[] not null default '{}', -- AIが自動付与（3.5節「サイレント・ドメイン・マッピング」、実装済み）
+  logic_verdict text not null default 'unverified', -- unverified | endorsed。旧flagged_brokenは警告バッジ廃止に伴い削除（product.md 3.6節）
+  truth_verdict text, -- null（未リクエスト/未確定）| true | false。真偽審判リクエストの確定結果（3.4節・下記truth_judgment_requests参照）
+  reach_score numeric not null default 0, -- 拡散スコア（モデレーションflagged時に0へ、13章）
   quoted_post_id uuid references public.posts(id), -- product.md 3.12節「引用リポスト」。引用元投稿（nullなら通常投稿）
   created_at timestamptz not null default now()
 );
@@ -126,6 +127,23 @@ create table public.reposts (
 -- 独立に成立し、UI上はリポストアイコンタップ時のボトムシートでどちらかを選択する
 -- （3.12節）。
 
+-- Feed → Discoverキュレーション（product.md 3.5節）。Feedの既存投稿をDiscoverにも表示させる
+-- 中間テーブル。元のFeed投稿はfeedのまま残り（削除・移動しない）、Discover側にも同じ投稿が
+-- 参照として表示される（Xのリポストと同様の「両方に出る」挙動。posts.contextは変更しない）。
+create table public.discover_promotions (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  promoted_by uuid not null references public.profiles(id), -- Create権限保持者（上位25%以上）のみ
+  tp_cost numeric not null, -- 3.4節と同水準の高コストTP消費（tp_transactionsに'discover_promotion'として記録）
+  created_at timestamptz not null default now(),
+  unique (post_id) -- 同一投稿の多重昇格は禁止（重複引き上げ防止）
+);
+-- RLS: select全公開。insertは`Create`権限保持者のみ、かつpost.contextが'feed'の場合のみ許可
+-- （すでにdiscover文脈の投稿を重ねて昇格させる意味がないため）。
+-- 「目利き報酬」（product.md 3.5節）は、promoted_byの投稿がDiscoverで一定の反響
+-- （例: 真偽投票のtrue確定、または一定いいね数）を得た場合にEdge Functionがtp_transactionsへ
+-- 報酬レコードを追加する形で実現する（7章に判定条件を定義）。
+
 -- いいね（基本エンゲージメント機能。3.12節）
 create table public.likes (
   id uuid primary key default gen_random_uuid(),
@@ -162,31 +180,50 @@ create table public.endorsements (
   unique(post_id, endorser_id, kind)
 );
 
--- ロジックチェック・バトル
-create table public.battles (
+-- 真偽審判リクエスト（product.md 3.4節。旧battles/battle_bets/logic_verdictsのフェーズ制judge投票を廃止し、
+-- 「Create権限保持者によるオプトイン型の真偽投票」1本に統合した後継テーブル）。
+-- 投稿には既定で真偽投票UIを一切表示せず、`Create`権限保持者（上位25%以上）がこのリクエストを
+-- 起票した投稿のみ、真偽投票（truth_votes）が可能になる（product.md 2.1節・3.4節）。
+-- 投票参加資格はさらに「投稿者本人と同格以上の知能階層」に絞られる（下記truth_votes参照）。
+create table public.truth_judgment_requests (
   id uuid primary key default gen_random_uuid(),
-  target_post_id uuid not null references public.posts(id),
-  challenger_id uuid not null references public.profiles(id),
-  challenger_post_id uuid references public.posts(id),
-  status text not null default 'active', -- active | resolved
-  challenger_stake_tp numeric not null default 0,
-  defender_stake_tp numeric not null default 0,
-  winner text, -- challenger | defender | null
-  resolves_at timestamptz not null,
-  created_at timestamptz not null default now()
-);
-
--- 観客ベット
-create table public.battle_bets (
-  id uuid primary key default gen_random_uuid(),
-  battle_id uuid not null references public.battles(id),
-  user_id uuid not null references public.profiles(id),
-  side text not null, -- challenger | defender
-  amount_tp numeric not null,
-  payout_tp numeric,
+  post_id uuid not null references public.posts(id) on delete cascade,
+  requested_by uuid not null references public.profiles(id),
+  author_intellect_percentile_snapshot numeric not null, -- リクエスト起票時点の投稿者intellect_percentileを固定保存。
+    -- 投票参加資格「投稿者本人と同格以上（percentile <= この値）」の判定基準はこのスナップショットを使い、
+    -- 投票期間中にintellect_percentileが定期再計算（30分毎）で変動しても基準がぶれないようにする
+  status text not null default 'voting', -- voting | resolved | invalid
+  resolved_verdict boolean, -- true=真が多数, false=偽が多数, null=未確定/無効
+  true_vote_count int not null default 0, -- 締切時の集計値（非正規化。Edge Function `resolve_truth_judgment`が確定時に書き込む）
+  false_vote_count int not null default 0,
+  quorum_threshold int not null default 10, -- 締切時にtrue+false投票数がこれ未満なら invalid（無効・全額返還）。Remote Config `truth_judgment_quorum` から起票時にコピー
+  opens_at timestamptz not null default now(),
+  closes_at timestamptz not null, -- opens_at + 24〜72時間（Remote Config `truth_judgment_window_hours`）。pg_cronがこの時刻到達で自動締切
+  resolved_at timestamptz,
   created_at timestamptz not null default now(),
-  unique(battle_id, user_id)
+  unique (post_id) -- 1投稿につきリクエストは1回のみ（再リクエスト不可。誤操作防止）
 );
+-- RLS: select全公開。insertは`Create`権限保持者（intellect_percentile <= 25 相当、RLS内で`profiles`参照）のみ、
+-- かつ対象postがcontext='discover'の場合のみ許可。update/deleteはEdge Function（service role）のみ。
+
+-- 真偽投票（TPベット）
+create table public.truth_votes (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references public.truth_judgment_requests(id) on delete cascade,
+  user_id uuid not null references public.profiles(id),
+  verdict boolean not null, -- true=本当, false=嘘
+  staked_tp numeric not null,
+  payout_tp numeric, -- 確定後に反映。的中: staked_tp*2相当をtp_transactionsで別途付与（原資分離、product.md 3.4節）。外れ: 0（没収）。無効: staked_tpそのまま返還
+  created_at timestamptz not null default now(),
+  unique (request_id, user_id) -- 1リクエストにつき1ユーザー1票（撤回不可、変更不可）
+);
+-- RLS: select全公開。insertは以下すべてを満たす場合のみ許可:
+--   (1) is_top_intellect_tier(auth.uid())（Create権限、上位25%以上）
+--   (2) profiles.intellect_percentile <= truth_judgment_requests.author_intellect_percentile_snapshot
+--       （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）
+--   (3) 対象request.status='voting'かつcloses_at未到達
+--   (4) auth.uid() <> 対象postのauthor_id（投稿者本人による自己投票（自演）を禁止。利益相反防止）
+-- update/deleteは不可（撤回不可の要件を素朴にDBレベルでも担保する）。
 
 -- ドメイン別専門スコア
 create table public.domain_scores (
@@ -272,35 +309,49 @@ create table public.quiz_responses (
   answered_at timestamptz not null default now()
 );
 
--- ロジック破綻認定（ジャッジ投票）
-create table public.logic_verdicts (
-  id uuid primary key default gen_random_uuid(),
-  post_id uuid not null references public.posts(id),
-  judge_id uuid not null references public.profiles(id), -- 上位5% or 専門家バッジ保持者のみ
-  verdict text not null, -- broken | endorsed
-  reason text,
-  created_at timestamptz not null default now(),
-  unique(post_id, judge_id)
-);
+-- 旧「ロジック破綻認定（ジャッジ投票）」テーブル（logic_verdicts）は、product.md 3.4節/3.6節の
+-- 見直しにより truth_judgment_requests / truth_votes（上記）へ統合・廃止した。
+-- ストライク発火は下記の通り truth_judgment_requests の確定結果を直接参照する。
 
 -- ストライク履歴
 create table public.strikes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id),
   strike_number int not null, -- 1,2,3
-  reason_post_id uuid references public.posts(id),
+  reason_request_id uuid references public.truth_judgment_requests(id), -- 真偽投票で「偽」確定したリクエスト（7章参照）
   created_at timestamptz not null default now()
 );
 
 -- 異議申し立て
 create table public.appeals (
   id uuid primary key default gen_random_uuid(),
-  target_type text not null, -- verdict | strike
+  target_type text not null, -- truth_judgment | strike
   target_id uuid not null,
   user_id uuid not null references public.profiles(id),
   status text not null default 'pending', -- pending | approved | rejected
   created_at timestamptz not null default now()
 );
+
+-- TP元帳（全てのTP増減を記録する監査テーブル。product.md 3.4.1節）。
+-- `profiles.tp_balance` はこのテーブルの累積値のキャッシュとして扱い、Edge Function側で
+-- 「tp_transactions insert + profiles.tp_balance update」を単一トランザクション（RPC）内で
+-- 必ず対にして実行する（キャッシュと元帳の不整合を防ぐ）。
+create table public.tp_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id),
+  amount numeric not null, -- 正=獲得、負=消費/没収
+  reason text not null,
+  -- 例: quiz_daily_reward | quiz_onboarding_reward | truth_vote_stake | truth_vote_payout |
+  --     truth_vote_forfeit | truth_vote_refund | staked_post | discover_post_cost |
+  --     discover_promotion_cost | discover_scout_reward | comment_slot_auction |
+  --     cosmetic_purchase | tp_purchase（課金）
+  ref_type text, -- post | truth_judgment_request | truth_vote | discover_promotion 等（監査時の参照用）
+  ref_id uuid,
+  balance_after numeric not null, -- 記帳直後の残高スナップショット（監査・不正検知の突合を容易にする）
+  created_at timestamptz not null default now()
+);
+-- RLS: selectは自分の行のみ（他人のTP取引履歴は非公開）。insert/update/deleteはEdge Function（service role）のみ。
+-- インデックス: (user_id, created_at desc) — プロフィール画面等での履歴取得用。
 
 -- FCMデバイストークン（プッシュ通知送信用。Firebase Cloud Messaging連携）
 create table public.device_tokens (
@@ -347,6 +398,7 @@ create table public.moderation_checks (
 - `reach_score` を0にすることでフィード表示ロジック（Edge FunctionまたはPostgRESTのview）が自動的にそのポストを除外する。
 - `quiz_questions.locale` によりユーザーの `profiles.locale` に応じた出題切り替えを行う。日本語ローカライズが手薄な初期段階では英語問題を出しフォールバックする設計とする。
 - `likes` / `comments` / `reposts` の件数はフィード取得時にPostgRESTの集計embed（例: `select=*,likes(count),comments(count),reposts(count)`）で都度取得する。MVP規模（無料枠、投稿数少数）ではキャッシュ列を持たず都度集計で十分と判断し、将来的に投稿数が増えた場合は`posts`テーブルへの非正規化カウンタ列導入を検討する（[12章](#12-無料枠を前提とした制約とスケーリング方針)の考え方に準拠）。
+- **上位ユーザー（`Create`権限、product.md 2.1節）判定の共通関数**: 「Discoverへの新規投稿」「真偽審判リクエストの起票」「真偽投票」「Discoverキュレーション（`discover_promotions` insert）」は、いずれも同一の条件（`profiles.intellect_percentile <= 25`）で権限判定する。RLSポリシー内で毎回同じ条件式を書かず、`public.is_top_intellect_tier(uid uuid) returns boolean`（`security definer`関数、`profiles.intellect_percentile`を参照）を共通ヘルパーとして定義し、各テーブルのRLSポリシーから呼び出す。
 
 ---
 
@@ -360,8 +412,8 @@ create table public.moderation_checks (
 ### Intellect Score
 
 - 基礎値: `quiz_responses` の正答率・回答速度から算出（速く正確なほど高評価、ただし極端に速い＝AI/チート疑惑としてフラグ）。
-- 加点: ロジックチェック勝利、専門家Endorse獲得、上位層からのlogic_endorse。
-- 減点: `logic_verdicts` でbroken認定を受けた回数・重み。
+- 加点: 真偽投票（`truth_votes`）で的中（多数決側に投票）した回数、専門家Endorse獲得、上位層からのlogic_endorse。
+- 減点: 自分の投稿が真偽投票で「偽」確定（`truth_judgment_requests.resolved_verdict = false`）した回数・重み。
 - 同様にパーセンタイルへ変換し `intellect_percentile` に反映。バッジ表示条件はこの値を参照。
 
 ### 動的収束モデル（将来拡張）
@@ -385,15 +437,15 @@ create table public.moderation_checks (
 |---|---|
 | **Auth** | メール/パスワード + Google Sign-In（OAuth）、`auth.users` と `profiles` の1:1連携（トリガーで自動作成）。`profiles.profile_completed` でGoogle新規登録直後の未入力状態を判定し、未完了ユーザーは`/complete-profile`へ強制遷移させる（後述） |
 | **Postgres + RLS** | 全データの永続化。RLSで「本人のみ更新可」「公開読み取り可」等を制御 |
-| **Edge Functions** | (1) AIドメインラベリング（Gemini API呼び出し） (2) クイズ自動生成・マルチエージェント検証パイプライン（6章） (3) スコア再計算バッチ (4) ロジックチェック/ベット精算 (5) ストライク判定・実行 (6) 不正検知 (7) FCMプッシュ通知送信 (8) Mux Direct Upload URL発行・Mux Webhook受信（5章） (9) UGCモデレーション（画像/動画/テキストの自動チェック、13章） |
-| **pg_cron / Scheduled Functions** | パーセンタイル再計算（30分毎）、平均値キャッシュ再計算・日次スコアスナップショット記録（`recalculate_score_stats()`/`snapshot_daily_scores()`、1日1回）、バトル解決（`resolves_at` 到達時の精算）、デイリーミッションのリセット、クイズ問題プールの自動補充 |
+| **Edge Functions** | (1) AIドメインラベリング（Gemini API呼び出し） (2) クイズ自動生成・マルチエージェント検証パイプライン（6章） (3) スコア再計算バッチ (4) 真偽審判リクエスト起票・投票・締切精算（`request_truth_judgment` / `cast_truth_vote` / `resolve_truth_judgment`、7章） (5) ストライク判定・実行 (6) 不正検知 (7) FCMプッシュ通知送信 (8) Mux Direct Upload URL発行・Mux Webhook受信（5章） (9) UGCモデレーション（画像/動画/テキストの自動チェック、13章） |
+| **pg_cron / Scheduled Functions** | パーセンタイル再計算（30分毎）、平均値キャッシュ再計算・日次スコアスナップショット記録（`recalculate_score_stats()`/`snapshot_daily_scores()`、1日1回）、真偽審判リクエストの締切精算（`closes_at` 到達時に`resolve_truth_judgment`を実行、5〜10分毎のポーリング）、デイリーミッションのリセット、クイズ問題プールの自動補充 |
 | **Storage** | 投稿メディア（画像/動画）、アバター画像 |
-| **Realtime** | バトルの投票数・ベット状況の**アプリ起動中のライブ更新**（インアプリのみ。バックグラウンド通知はFirebase FCMが担当） |
+| **Realtime** | Discover投稿の真偽投票数の**アプリ起動中のライブ更新**（`truth_judgment_requests`のtrue_vote_count/false_vote_countをRealtimeで購読。インアプリのみ、バックグラウンド通知はFirebase FCMが担当） |
 | **PostgREST (自動API)** | Flutterからの標準CRUD |
 
 Edge Functionsから呼び出すAI機能（ドメインラベリング、クイズ自動生成・検証、AIチート検知の一部の文章解析）は**Gemini API（Google AI Studio / Vertex AI経由）**を採用する。APIキーはSupabaseのFunction Secretsで管理し、クライアントに一切露出させない。
 
-Edge Functionsは「イベント発生時（Endorse獲得、バッジ実績解除、ストライク、バトル解決等）にFirebase Cloud Messaging (FCM) HTTP v1 APIを呼び出してプッシュ通知を送信する」役割も担う（詳細は4章）。
+Edge Functionsは「イベント発生時（Endorse獲得、バッジ実績解除、ストライク、真偽審判リクエスト確定等）にFirebase Cloud Messaging (FCM) HTTP v1 APIを呼び出してプッシュ通知を送信する」役割も担う（詳細は4章）。
 
 ---
 
@@ -404,17 +456,17 @@ Edge Functionsは「イベント発生時（Endorse獲得、バッジ実績解�
 
 | Firebase機能 | 用途 |
 |---|---|
-| **Cloud Messaging (FCM)** | プッシュ通知の配信基盤。Endorse獲得・バッジ実績解除・バトル結果確定・ストライク警告・デイリーミッションのリマインド等を配信 |
-| **Remote Config** | クイズの出題難易度パラメータ、ストライク閾値、レイヤーフィルターのデフォルト値、機能フラグ（Battle機能・専門家発掘機能・広告表示などのON/OFF）をアプリ更新なしで調整するための設定配信 |
+| **Cloud Messaging (FCM)** | プッシュ通知の配信基盤。Endorse獲得・バッジ実績解除・真偽審判リクエスト確定・ストライク警告・デイリーミッションのリマインド等を配信 |
+| **Remote Config** | クイズの出題難易度パラメータ、ストライク閾値、レイヤーフィルターのデフォルト値、真偽投票の締切時間・クォーラム閾値、機能フラグ（専門家発掘機能・広告表示などのON/OFF）をアプリ更新なしで調整するための設定配信 |
 | **Crashlytics** | クラッシュ・非致命的エラーの収集 |
-| **Analytics** | 画面遷移・主要アクション（投稿、Endorse、バトル参加、ベット）のイベント計測 |
+| **Analytics** | 画面遷移・主要アクション（投稿、Endorse、真偽審判リクエスト、真偽投票）のイベント計測 |
 | **App Distribution**（任意） | TestFlight/Google Play内部テスト前の社内配布に利用可 |
 
 ### 通知アーキテクチャ
 
 ```
 [Supabase Edge Function]
-   ├─ イベント検知（Endorse insert / strike insert / battle resolved 等のトリガー）
+   ├─ イベント検知（Endorse insert / strike insert / truth_judgment_requests resolved 等のトリガー）
    ├─ 対象ユーザーの device_tokens を profiles経由で取得
    └─ Firebase Admin SDK (Node/Deno) 経由で FCM HTTP v1 API へ送信
         └─ [端末] Flutterアプリ（firebase_messaging）が受信・表示・タップ時ディープリンク
@@ -427,7 +479,7 @@ Edge Functionsは「イベント発生時（Endorse獲得、バッジ実績解�
 
 ### Remote Configの利用方針
 
-- キー例: `daily_quiz_count`, `lock_quiz_question_count`, `strike_threshold_broken_votes`, `default_layer_filter`, `feature_battle_enabled`, `feature_expert_discovery_enabled`, `ads_enabled`。
+- キー例: `daily_quiz_count`, `lock_quiz_question_count`, `strike_thresholds`（例: `[1,3,5]`、7章）, `truth_judgment_window_hours`（例: 48）, `truth_judgment_quorum`（例: 10）, `default_layer_filter`, `feature_expert_discovery_enabled`, `ads_enabled`。
 - Remote Configの値は「クライアント側の表示・UX調整」に限定し、金銭・スコアに関わる**信頼できる計算はEdge Function/DB側に必ず二重で持たせる**（クライアント改ざん対策）。
 - Firebase CLIでテンプレート（`remoteconfig.template.json`）をバージョン管理し、`firebase deploy --only remoteconfig` でデプロイする。
 
@@ -584,21 +636,64 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
 
 ## 7. デマ撲滅フローと3ストライク実装
 
-### デマ撲滅フロー（実装レベル）
+旧設計の「フェーズ制ロジックチェック（潜伏期/処刑期）」「上位5%ジャッジによる`logic_verdicts`投票」は
+廃止し、product.md 3.4節の**真偽投票（`truth_judgment_requests` / `truth_votes`）1本**に統合した
+（旧`battles`/`battle_bets`/`logic_verdicts`テーブルは新設計に伴い作成しない）。反論コメント機構
+（旧Edit権限）も設けない（product.md 2.1節）。
 
-1. **リポスト時警告**: `reposts` insert前にクライアントが対象 `posts.logic_verdict` を確認。`unverified` かつ投稿者 `intellect_percentile < 75` の場合、確認モーダルを表示してから続行させる。
-2. **ロジックチェック起動**: 専門家バッジ or 上位25%以上のユーザーのみ `battles` を作成可能（RLSで制御）。
-3. **強制警告**: `logic_verdicts` で `broken` 票が閾値（例: 上位5%ユーザーから3票以上、または専門家バッジ保持者2票以上）に達したら、Edge Functionが `posts.logic_verdict = 'flagged_broken'`、`reach_score = 0` に更新。フィードクエリはこれをフィルタ。
-4. **バックアップ昇格**: `endorsements(kind='logic_endorse')` が閾値に達したら `posts.logic_verdict = 'endorsed'` にし、高知能限定タイムラインに優先表示されるようreach_scoreを加点。
+### 7.1 真偽投票フロー（実装レベル）
 
-### 3ストライク・ペナルティ実装
+```
+[Discover投稿詳細画面]
+   │
+   ├─ 1. リクエスト起票（Edge Function: request_truth_judgment）
+   │      ├─ 呼び出し元が is_top_intellect_tier(auth.uid()) であること、
+   │      │  対象postが context='discover' であることをEdge Function側でも再検証（RLSと二重チェック）
+   │      ├─ truth_judgment_requests に1行insert
+   │      │  （author_intellect_percentile_snapshot=対象投稿者の現在のintellect_percentileをコピー、
+   │      │   opens_at=now(), closes_at=now()+Remote Config `truth_judgment_window_hours`,
+   │      │   quorum_threshold=Remote Config `truth_judgment_quorum` の値をコピー）
+   │      └─ 元投稿者へFCM通知（4章）
+   │
+   ├─ 2. 投票（Edge Function: cast_truth_vote）
+   │      ├─ is_top_intellect_tier(auth.uid())、request.status='voting'、closes_at未到達を検証
+   │      ├─ profiles.intellect_percentile <= request.author_intellect_percentile_snapshot
+   │      │  （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）を検証
+   │      ├─ profiles.tp_balance から staked_tp を減算 + tp_transactions
+   │      │  (reason='truth_vote_stake', amount=-staked_tp) を同一トランザクションで記録
+   │      └─ truth_votes に1行insert（unique制約で1人1票を担保）
+   │
+   └─ 3. 締切精算（Scheduled Function: resolve_truth_judgment、5〜10分毎のpg_cronでcloses_at超過分をポーリング）
+          ├─ true_vote_count / false_vote_count を集計しrequestsへ書き込み
+          ├─ 合計投票数 < quorum_threshold の場合:
+          │    status='invalid'、resolved_verdict=null。全投票者へ staked_tp をそのまま返還
+          │    （tp_transactions: reason='truth_vote_refund'）
+          └─ quorum達成の場合:
+               resolved_verdict = (true_vote_count > false_vote_count)
+               status='resolved'、posts.truth_verdict を更新
+               的中側: tp_transactions に reason='truth_vote_payout', amount=+staked_tp*2 を
+                 プラットフォーム負担として追加insert（原資は敗者没収分と紐付けない、product.md 3.4節）
+               外れ側: 追加処理なし（既にstake時点で減算済み＝没収。tp_transactionsに
+                 reason='truth_vote_forfeit', amount=0 の記録行のみ残し監査ログを完結させる）
+```
 
-- `logic_verdicts` で `flagged_broken` になった投稿の投稿者に対し、Edge Functionが `strikes` にレコードを追加。
-- ストライク数に応じた処理をEdge Function内で分岐実行:
-  - 1st: `intellect_score` を大幅減点し `intellect_percentile` を再計算、該当投稿の `staked_tp` を没収、`strike_expires_at = now() + 14 days` を設定してプロフィールに警告ラベルを表示。
-  - 2nd: バッジ非表示になるよう `intellect_percentile` を強制的に閾値以下に設定するフラグ列を追加（`badge_suppressed_until`）、投稿権限ロック（`posting_locked_until`）。
-  - 3rd: `is_permanently_banned` フラグを立てず、代わりに `profiles` の主要スコア列・`tp_balance`・フォロワー関連集計をリセットする「ソフトリセット」処理（アカウント自体は維持し、再出発とする）。
-- 誤爆防止のため `appeals` テーブルで異議申し立てを受け付け、承認された場合はストライクを取り消し、罰則を巻き戻すロールバック処理を用意。
+- **配当2倍の原資**: 敗者の没収TPとは会計上完全に分離し、`truth_vote_payout`は常にプラットフォームが
+  新規に付与するTPとして記録する（product.md 3.4節「配当の原資分離」）。これによりTPの総量は
+  投票イベントごとにわずかに増加（インフレ）しうるため、TPの総発行量は`tp_transactions`の
+  集計で定期監視する（12章の運用監視に追加）。
+- **リポスト時警告**: `reposts` insert前にクライアントが対象 `posts.truth_verdict` を確認。
+  `false`（真偽投票で偽と確定済み）の場合、確認モーダルを表示してから続行させる。
+  `truth_verdict`が`null`（未リクエスト/投票中/無効）の場合は警告を出さない。
+- **バックアップ昇格**: `endorsements(kind='logic_endorse')` が閾値に達したら `posts.logic_verdict = 'endorsed'` にし、高知能限定タイムラインに優先表示されるようreach_scoreを加点（真偽投票とは独立した仕組み、product.md 3.6節）。
+
+### 7.2 3ストライク・ペナルティ実装
+
+- `truth_judgment_requests` が `resolved_verdict = false` で確定した際、Edge Function（`resolve_truth_judgment`の一部）が対象投稿の投稿者に対し `strikes` にレコードを追加する（`reason_request_id`に確定したリクエストのIDを記録）。
+- ストライク発火閾値（累積「偽」確定回数）は Remote Config `strike_thresholds`（仮値 `[1, 3, 5]`）で管理し、該当回数に達するたびに1段階ずつ処理をEdge Function内で分岐実行:
+  - 1st（累積1回）: `intellect_score` を大幅減点し `intellect_percentile` を再計算、該当投稿の `staked_tp` を没収（`tp_transactions`記録）、`strike_expires_at = now() + 14 days` を設定してプロフィールに警告ラベルを表示。
+  - 2nd（累積3回）: バッジ非表示になるよう `intellect_percentile` を強制的に閾値以下に設定するフラグ列を追加（`badge_suppressed_until`）、投稿権限ロック（`posting_locked_until`）。
+  - 3rd（累積5回）: `is_permanently_banned` フラグを立てず、代わりに `profiles` の主要スコア列・`tp_balance`・フォロワー関連集計をリセットする「ソフトリセット」処理（アカウント自体は維持し、再出発とする）。
+- 誤爆防止のため `appeals` テーブルで異議申し立てを受け付け（`target_type='truth_judgment'`で該当リクエストへの異議、または`target_type='strike'`でストライク自体への異議）、承認された場合はストライクを取り消し、罰則を巻き戻すロールバック処理を用意。
 
 ---
 
@@ -607,7 +702,7 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
 | 懸念 | 対策 |
 |---|---|
 | デイリーテストをAIに解かせる | 1問あたり制限時間を極小化（10〜15秒）。幾何学パズル・画像ベース問題・最新時事ロジック問題を混在させ、AIが単純テキストコピペで解きにくい形式にする。回答時間の統計的外れ値（人間離れした速さ・一定間隔）を検知しフラグを立てる |
-| ロジックチェックの自動荒らし | バトル仕掛け（挑戦）前に即時クイズを義務化。最低ステーク額を高めに設定しリスクを持たせる。同一アカウントからの短時間大量アクションをレートリミット |
+| ロジックチェックの自動荒らし | 真偽審判リクエストの起票・投票は`Create`権限（上位25%以上）保持者に限定されるため無差別な荒らしの母数自体が絞られる。加えて最低ステーク額を高めに設定しリスクを持たせ、同一アカウントからの短時間大量リクエスト/投票をレートリミット |
 | チャットでのAI壁打ち | 限定チャット（将来機能）は音声ディベート形式、または発言間隔を極めて短く制限する設計とする（MVPスコープ外） |
 
 不正検知はEdge Functionでの後段バッチ処理（`quiz_responses` の応答時間分布分析）として実装し、疑わしいユーザーは自動ストライクではなく「要人力レビューキュー」に入れる（誤検知による無実ユーザーへの過剰罰則を避ける）。
@@ -636,8 +731,7 @@ lib/
 │   ├── daily_mission/
 │   ├── feed/
 │   ├── compose/
-│   ├── battle/
-│   ├── discover/
+│   ├── discover/ (真偽審判リクエスト・真偽投票UIを含む。独立battle機能は持たない、4章参照)
 │   ├── profile/
 │   └── notifications/
 └── packages/
@@ -656,7 +750,7 @@ lib/
   - **全画面メディアビューア**: 画像（複数枚、`PageView`+ドットインジケーター）・動画（下部シークバー＋つまみ）を共通の`FullscreenMediaViewer`ウィジェットで表示する。フィード側のサムネイル/軽量プレビューと全画面側のフル品質表示は同じ`playback_id`/`media_urls`を参照し、表示解像度のみ出し分ける。
 - **多言語対応**: `flutter_localizations` + `gen-l10n`。既定ロケールは英語（`app_en.arb`）、日本語（`app_ja.arb`）を追加ロケールとして提供。端末ロケールが未対応言語の場合は英語にフォールバック。
 - **デザインシステム分離**: `packages/renga_ui` をローカルパッケージ化し、Widgetbookでカタログ管理。
-- **アニメーション**: `rive` または `lottie` をバッジ実績解除・バトル結果発表に使用。
+- **アニメーション**: `rive` または `lottie` をバッジ実績解除・真偽審判リクエスト確定時の結果発表に使用。
 - **通報/モデレーション**: すべての投稿・動画・プロフィールに通報導線（`RengaReportSheet` 等の共通コンポーネント）を用意し、`reports` テーブルへ書き込む（詳細は [13章](#13-コンテンツモデレーショントrust--safety)）。
 - **共有**: OS標準の共有シートを開くために `share_plus` を使用する（投稿の共有ボタン。3.12節）。`receive_sharing_intent`（既存導入済み、5.3節）は他アプリからの共有受信専用であり、送信側の共有には使わない。
 - **設定・編集系UIの方針**: Profile画面の「編集」ボタンのように、既存の読み取り専用ビュー上で完結する軽い編集は引き続き`showModalBottomSheet`のボトムシートに分離する（`lib/features/feed/intellect_badge.dart`の説明ボトムシートと同じ角丸・パディングの意匠を踏襲）。投稿の新規作成（Compose）も同じ方針で、Feed画面のAppBar投稿ボタンから`ComposeSheet`（`lib/features/feed/compose_sheet.dart`）を`showModalBottomSheet`（`isScrollControlled: true`）で開く（`lib/features/profile/profile_edit_sheet.dart`の`ProfileEditSheet`と同一パターン）。YouTubeアプリ等からの共有シート起動（5.3節）時は、`go_router`の`/compose`ルートを共有テキスト付きディープリンクの薄い受け口として残し、遷移後すぐに同じ`ComposeSheet`をボトムシートとして開く。一方、**Settings画面配下の各設定変更**（プロフィール編集・パスワード変更・アカウント削除・表示設定・表示言語）は、Settings画面自体をリンク一覧に留め、それぞれ`go_router`の子ルート（例: `/settings/profile`, `/settings/password`, `/settings/delete-account`, `/settings/display`, `/settings/language`）としてフルページ遷移させる方針に統一する（product.md 3.11節）。**ボトムシート共通ルール**: どちらの形式でも「キャンセル」専用ボタンは置かず、シートを閉じる操作自体をキャンセルとして扱う（product.md 5章）。
@@ -767,9 +861,10 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
 
 Supabase無料プランの主な制約（DB 500MB、月間Edge Function実行数・帯域制限、7日でのプロジェクト一時停止（非アクティブ時）等）を踏まえ、以下を設計方針とする。
 
-- **重い集計はバッチ化**: パーセンタイル再計算・バトル精算は都度リアルタイム計算せず、Scheduled Functionで数分〜数時間おきに実行しキャッシュ列に反映。
+- **重い集計はバッチ化**: パーセンタイル再計算・真偽審判リクエストの締切精算は都度リアルタイム計算せず、Scheduled Functionで数分〜数時間おきに実行しキャッシュ列に反映。
 - **メディアは圧縮・サイズ制限**: Storage容量節約のため、アップロード時にクライアント側でリサイズ・圧縮してから送信。
 - **Gemini API呼び出しの間引き**: ドメインラベリングは全投稿ではなく一定文字数以上・シリアス投稿優先で実行。クイズ自動生成バッチも問題プールの残数が閾値を下回った場合のみ実行し、Gemini APIの無料枠のレート制限内に収まるようEdge Function側でキューイング・レートリミットを行う。
+- **TP発行量の監視**: 真偽投票の的中配当（`truth_vote_payout`）はプラットフォームが新規発行するTPのため、`tp_transactions`の集計で発行/没収の収支を定期監視し、インフレが過度に進む場合は配当倍率・クォーラム閾値をRemote Config側で調整する（7章）。
 - **将来のスケール**: ユーザー数増加時はSupabase Proプランへの移行、または集計処理を専用ワーカーへ切り出す拡張ポイントを設計上残す。
 
 Firebase側はSpark（無料）プランを前提とする。
