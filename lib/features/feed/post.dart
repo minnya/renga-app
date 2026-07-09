@@ -1,3 +1,76 @@
+/// design/product.md 3.12節「引用リポスト」。引用元投稿の要約プレビュー（ミニカード）表示用の
+/// 軽量モデル。`Post`本体と異なりエンゲージメント件数等は保持しない
+/// （ミニカードでは不要なため、ネストselectのペイロードも最小限にしている）。
+class QuotedPostPreview {
+  const QuotedPostPreview({
+    required this.id,
+    required this.authorId,
+    required this.authorUsername,
+    required this.body,
+    required this.mediaType,
+    required this.mediaUrls,
+    required this.createdAt,
+    this.videoThumbnailUrl,
+  });
+
+  final String id;
+  final String authorId;
+  final String? authorUsername;
+  final String body;
+  final String mediaType;
+  final List<String>? mediaUrls;
+  final DateTime createdAt;
+  final String? videoThumbnailUrl;
+
+  /// `posts!quoted_post_id(...)` ネストselect結果からパースする。
+  factory QuotedPostPreview.fromMap(Map<String, dynamic> map) {
+    final profile = map['profiles'];
+    String? username;
+    if (profile is Map) {
+      username = profile['username'] as String?;
+    }
+
+    final rawMediaUrls = map['media_urls'];
+    final mediaUrls = rawMediaUrls is List
+        ? rawMediaUrls.map((e) => e as String).toList()
+        : null;
+
+    final rawVideos = map['videos'];
+    Map? video;
+    if (rawVideos is List && rawVideos.isNotEmpty) {
+      video = rawVideos.first as Map;
+    } else if (rawVideos is Map) {
+      video = rawVideos;
+    }
+
+    return QuotedPostPreview(
+      id: map['id'] as String,
+      authorId: map['author_id'] as String,
+      authorUsername: username,
+      body: map['body'] as String? ?? '',
+      mediaType: map['media_type'] as String? ?? 'text',
+      mediaUrls: mediaUrls,
+      createdAt: DateTime.parse(map['created_at'] as String),
+      videoThumbnailUrl: video?['thumbnail_url'] as String?,
+    );
+  }
+
+  /// [ComposeSheet]の引用リポストモードで、遷移元から渡された[Post]をそのまま
+  /// ミニカードプレビュー表示するための変換。
+  factory QuotedPostPreview.fromPost(Post post) {
+    return QuotedPostPreview(
+      id: post.id,
+      authorId: post.authorId,
+      authorUsername: post.authorUsername,
+      body: post.body,
+      mediaType: post.mediaType,
+      mediaUrls: post.mediaUrls,
+      createdAt: post.createdAt,
+      videoThumbnailUrl: post.videoThumbnailUrl,
+    );
+  }
+}
+
 /// design/system.md 1章の `posts` テーブルに対応する投稿モデル。
 ///
 /// フィード表示に必要な最小限のフィールドのみを保持する。
@@ -23,6 +96,7 @@ class Post {
     this.videoPlaybackId,
     this.videoThumbnailUrl,
     this.domainLabels,
+    this.quotedPost,
   });
 
   final String id;
@@ -72,6 +146,10 @@ class Post {
   /// 投稿本文から自動付与した産業分類ラベル（日本標準産業分類の大分類キー、最大3件）。
   final List<String>? domainLabels;
 
+  /// design/product.md 3.12節「引用リポスト」。引用元投稿の要約プレビュー。
+  /// `posts.quoted_post_id`がnullの通常投稿では`null`。
+  final QuotedPostPreview? quotedPost;
+
   /// design/product.md 4章「上位25%/5%知能バッジ」判定用。値が小さいほど上位を表す
   /// （例: 上位5% → `intellect_percentile <= 5`）。スコアリングパイプライン未実装のため
   /// 現状は全ユーザーで`0`のまま。
@@ -108,6 +186,16 @@ class Post {
       video = rawVideos;
     }
 
+    // design/product.md 3.12節「引用リポスト」。`posts!quoted_post_id(...)`ネストselectは
+    // 単一行（1:1）想定だが、Supabase Dartの実装により配列/Mapどちらでも返り得るため防御的に扱う。
+    final rawQuotedPost = map['quoted_post'];
+    Map<String, dynamic>? quotedPostMap;
+    if (rawQuotedPost is List && rawQuotedPost.isNotEmpty) {
+      quotedPostMap = Map<String, dynamic>.from(rawQuotedPost.first as Map);
+    } else if (rawQuotedPost is Map) {
+      quotedPostMap = Map<String, dynamic>.from(rawQuotedPost);
+    }
+
     return Post(
       id: map['id'] as String,
       authorId: map['author_id'] as String,
@@ -129,6 +217,9 @@ class Post {
       videoPlaybackId: video?['mux_playback_id'] as String?,
       videoThumbnailUrl: video?['thumbnail_url'] as String?,
       domainLabels: domainLabels,
+      quotedPost: quotedPostMap == null
+          ? null
+          : QuotedPostPreview.fromMap(quotedPostMap),
     );
   }
 

@@ -137,11 +137,13 @@ final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
       .from('posts')
       .select(
         'id, body, created_at, author_id, media_type, media_urls, post_type, staked_tp, '
-        'domain_labels, '
+        'domain_labels, quoted_post_id, '
         'external_video_url, external_video_provider, external_video_id, '
         'profiles(username, intellect_percentile), '
         'videos(status, mux_playback_id, thumbnail_url), '
-        'likes(count), comments(count), reposts(count)',
+        'likes(count), comments(count), reposts(count), '
+        'quoted_post:posts!quoted_post_id(id, body, media_type, media_urls, author_id, '
+        'created_at, profiles(username), videos(thumbnail_url))',
       )
       .order('created_at', ascending: false)
       .limit(50);
@@ -156,11 +158,13 @@ final postByIdProvider = FutureProvider.family<Post, String>((ref, postId) async
       .from('posts')
       .select(
         'id, body, created_at, author_id, media_type, media_urls, post_type, staked_tp, '
-        'domain_labels, '
+        'domain_labels, quoted_post_id, '
         'external_video_url, external_video_provider, external_video_id, '
         'profiles(username, intellect_percentile), '
         'videos(status, mux_playback_id, thumbnail_url), '
-        'likes(count), comments(count), reposts(count)',
+        'likes(count), comments(count), reposts(count), '
+        'quoted_post:posts!quoted_post_id(id, body, media_type, media_urls, author_id, '
+        'created_at, profiles(username), videos(thumbnail_url))',
       )
       .eq('id', postId)
       .single();
@@ -226,9 +230,18 @@ class FeedController {
 
   final Ref ref;
 
-  Future<void> createTextPost({required String authorId, required String body}) async {
+  /// [quotedPostId] を指定すると design/product.md 3.12節「引用リポスト」として、
+  /// `posts.quoted_post_id` に引用元投稿のIDをセットして投稿する
+  /// （`ComposeSheet`の引用リポストモードから呼ばれる）。
+  Future<void> createTextPost({
+    required String authorId,
+    required String body,
+    String? quotedPostId,
+  }) async {
     final trimmed = body.trim();
-    if (trimmed.isEmpty) {
+    // design/product.md 3.12節「引用リポスト」: 引用元投稿自体が本文の役割を持つため、
+    // 引用リポスト時（quotedPostId指定時）は本文が空でも許可する。
+    if (trimmed.isEmpty && quotedPostId == null) {
       throw ArgumentError('投稿内容を入力してください');
     }
 
@@ -238,6 +251,7 @@ class FeedController {
           'author_id': authorId,
           'body': trimmed,
           'media_type': containsYoutubeUrl(trimmed) ? 'youtube_embed' : 'text',
+          if (quotedPostId != null) 'quoted_post_id': quotedPostId,
           ..._youtubeFields(trimmed),
         })
         .select('id')
@@ -245,7 +259,7 @@ class FeedController {
 
     ref.invalidate(feedPostsProvider);
     _labelPostDomain(row['id'] as String, trimmed);
-    await _logPostCreated('text');
+    await _logPostCreated(quotedPostId != null ? 'quote_repost' : 'text');
   }
 
   /// design/system.md 6.1節「ドメインラベリング」。投稿本文をGeminiで分類し
@@ -300,6 +314,7 @@ class FeedController {
     required String authorId,
     required String body,
     required String imageUrl,
+    String? quotedPostId,
   }) async {
     final trimmedBody = body.trim();
     final row = await supabase
@@ -309,25 +324,31 @@ class FeedController {
           'body': trimmedBody,
           'media_type': 'image',
           'media_urls': [imageUrl],
+          if (quotedPostId != null) 'quoted_post_id': quotedPostId,
         })
         .select('id')
         .single();
 
     ref.invalidate(feedPostsProvider);
     _labelPostDomain(row['id'] as String, trimmedBody);
-    await _logPostCreated('image');
+    await _logPostCreated(quotedPostId != null ? 'quote_repost' : 'image');
   }
 
   /// design/system.md 5章「Mux動画アーキテクチャ」。動画アップロード開始時に
   /// `posts` レコードを先に作成し、返却された `post_id` に紐づけて `videos` テーブルへ
   /// アップロード状況を記録できるようにする（[VideoUploadController]から呼び出す）。
-  Future<String> createVideoPost({required String authorId, required String body}) async {
+  Future<String> createVideoPost({
+    required String authorId,
+    required String body,
+    String? quotedPostId,
+  }) async {
     final row = await supabase
         .from('posts')
         .insert({
           'author_id': authorId,
           'body': body.trim(),
           'media_type': 'video',
+          if (quotedPostId != null) 'quoted_post_id': quotedPostId,
         })
         .select('id')
         .single();

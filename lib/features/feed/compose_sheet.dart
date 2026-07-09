@@ -9,6 +9,8 @@ import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../quiz/lock_quiz_page.dart';
 import 'feed_controller.dart';
+import 'post.dart';
+import 'quoted_post_card.dart';
 import 'video_upload_controller.dart';
 import 'youtube_utils.dart';
 
@@ -30,9 +32,15 @@ class ComposeSheet extends ConsumerStatefulWidget {
   /// design/product.md 3.1節「YouTubeアプリの共有シートに登場」。
   /// YouTubeアプリの共有シート等からRengaが起動された場合、共有された
   /// テキスト（動画タイトル+URL）を本文へ自動プリフィルするための初期値。
-  const ComposeSheet({super.key, this.initialBody});
+  ///
+  /// [quotedPost]を指定すると design/product.md 3.12節「引用リポスト」モードで開く。
+  /// この場合、投稿本文の上に引用元投稿のミニカードを表示し、送信時は
+  /// `posts.quoted_post_id`に引用元投稿のIDをセットして投稿する
+  /// （通常投稿・画像投稿・動画投稿いずれのモードでも引用元IDを付与できる）。
+  const ComposeSheet({super.key, this.initialBody, this.quotedPost});
 
   final String? initialBody;
+  final Post? quotedPost;
 
   @override
   ConsumerState<ComposeSheet> createState() => _ComposeSheetState();
@@ -137,7 +145,12 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
 
     final hasImage = _selectedImage != null && _selectedImageBytes != null;
     final hasVideo = _selectedVideo != null;
-    if (_controller.text.trim().isEmpty && !hasImage && !hasVideo) {
+    // design/product.md 3.12節「引用リポスト」: 引用元投稿自体が本文の役割を持つため、
+    // 引用リポスト時はコメント本文が空でも投稿できる（X同様）。
+    if (_controller.text.trim().isEmpty &&
+        !hasImage &&
+        !hasVideo &&
+        widget.quotedPost == null) {
       setState(() => _errorMessage = l10n.composeEmptyError);
       return;
     }
@@ -163,6 +176,7 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
           authorId: currentUser.id,
           body: _controller.text,
           imageUrl: imageUrl,
+          quotedPostId: widget.quotedPost?.id,
         );
       } else if (hasVideo) {
         // design/system.md 5.1節「動画アップロードフロー」。先に posts レコードを作成し、
@@ -170,6 +184,7 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
         final postId = await controller.createVideoPost(
           authorId: currentUser.id,
           body: _controller.text,
+          quotedPostId: widget.quotedPost?.id,
         );
         await VideoUploadController().uploadVideo(
           video: _selectedVideo!,
@@ -180,7 +195,11 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
           },
         );
       } else {
-        await controller.createTextPost(authorId: currentUser.id, body: _controller.text);
+        await controller.createTextPost(
+          authorId: currentUser.id,
+          body: _controller.text,
+          quotedPostId: widget.quotedPost?.id,
+        );
       }
 
       if (!mounted) return;
@@ -322,6 +341,19 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
                       ),
                     ),
                   ),
+                  // design/product.md 3.12節「引用リポスト」。引用元投稿のミニカードプレビュー
+                  // （タップ不可。送信先を誤認させないため`onTap`は渡さない）。
+                  if (widget.quotedPost != null) ...[
+                    Text(
+                      l10n.composeQuotedPostSectionLabel,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    QuotedPostCard(
+                      quotedPost: QuotedPostPreview.fromPost(widget.quotedPost!),
+                    ),
+                  ],
                   // メディア表示（通常投稿のみ）
                   if (_mode == _ComposeMode.normal) ...[
                     if (_selectedImageBytes != null)
@@ -446,26 +478,29 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
                       height: 1,
                     ),
                   ),
-                  // 投稿モード切替（SegmentedButton）
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: SegmentedButton<_ComposeMode>(
-                      segments: [
-                        ButtonSegment(
-                          value: _ComposeMode.normal,
-                          label: Text(l10n.composeNormalModeLabel),
-                        ),
-                        ButtonSegment(
-                          value: _ComposeMode.staked,
-                          label: Text(l10n.composeStakedModeLabel),
-                        ),
-                      ],
-                      selected: {_mode},
-                      onSelectionChanged: (isLoggedIn && !_isSubmitting)
-                          ? (selection) => setState(() => _mode = selection.first)
-                          : null,
+                  // 投稿モード切替（SegmentedButton）。design/product.md 3.12節「引用リポスト」:
+                  // ステーキング投稿（`create_staked_post` RPC）は引用元IDを扱えないため、
+                  // 引用リポストモードでは非表示にし常に通常投稿として扱う。
+                  if (widget.quotedPost == null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: SegmentedButton<_ComposeMode>(
+                        segments: [
+                          ButtonSegment(
+                            value: _ComposeMode.normal,
+                            label: Text(l10n.composeNormalModeLabel),
+                          ),
+                          ButtonSegment(
+                            value: _ComposeMode.staked,
+                            label: Text(l10n.composeStakedModeLabel),
+                          ),
+                        ],
+                        selected: {_mode},
+                        onSelectionChanged: (isLoggedIn && !_isSubmitting)
+                            ? (selection) => setState(() => _mode = selection.first)
+                            : null,
+                      ),
                     ),
-                  ),
                   // ツールバーアイコン行：画像・動画選択（通常投稿のみ）
                   if (_mode == _ComposeMode.normal && _selectedImageBytes == null && _selectedVideo == null)
                     Row(
@@ -497,14 +532,18 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
 /// 共有された動画リンクをプリフィルした状態で[ComposeSheet]をボトムシートとして開く共通処理。
 /// Feed画面の投稿ボタン（`lib/features/feed/feed_page.dart`）と共有シート受信導線
 /// （`lib/main.dart`、`/compose`ディープリンク経由）の両方から呼び出す。
-Future<void> showComposeSheet(BuildContext context, {String? initialBody}) {
+Future<void> showComposeSheet(
+  BuildContext context, {
+  String? initialBody,
+  Post? quotedPost,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
-    builder: (_) => ComposeSheet(initialBody: initialBody),
+    builder: (_) => ComposeSheet(initialBody: initialBody, quotedPost: quotedPost),
   );
 }
 
