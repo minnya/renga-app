@@ -186,6 +186,35 @@ create table public.domain_scores (
   primary key (user_id, domain)
 );
 
+-- Influence/Intellectの日次スナップショット（プロフィール画面の推移グラフ・前日比表示用、2章参照）。
+-- `recalculate_intellect_scores`/`recalculate_influence_scores` で更新された profiles の値を
+-- 日次バッチ（`snapshot_daily_scores`）でコピーする、いわゆるhistoryテーブル。
+-- ユーザーごと・日付ごとに1行（`unique(user_id, snapshot_date)`）とし、同日に複数回実行されても
+-- 上書き（upsert）されるようにする。
+create table public.user_score_history (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  snapshot_date date not null default current_date,
+  intellect_score numeric not null default 0,
+  intellect_percentile numeric not null default 0,
+  influence_score numeric not null default 0,
+  influence_percentile numeric not null default 0,
+  created_at timestamptz not null default now(),
+  unique (user_id, snapshot_date)
+);
+
+-- 全ユーザー横断の平均値（プロフィール画面の「平均より+15」等の比較表示用）を保持する
+-- シングルトンテーブル。都度全ユーザーを集計するとDB負荷が大きいため、
+-- `recalculate_score_stats()` バッチでキャッシュする（12章の考え方に準拠）。
+create table public.score_stats (
+  id boolean primary key default true,
+  avg_intellect_iq numeric not null default 100, -- 全ユーザーのIQ換算値(iq_format.dart相当)の平均
+  avg_influence_score numeric not null default 0,
+  avg_influence_percentile numeric not null default 50,
+  computed_at timestamptz not null default now(),
+  constraint score_stats_singleton check (id)
+);
+
 -- IQテスト問題プール（Geminiによる自動生成・マルチエージェント検証を経て投入される。詳細は6章）
 create table public.quiz_questions (
   id uuid primary key default gen_random_uuid(),
@@ -302,7 +331,7 @@ create table public.moderation_checks (
 
 補足:
 
-- パーセンタイル（`influence_percentile`, `intellect_percentile`）は定期バッチ（Supabase Scheduled Function / pg_cron）で再計算し、`profiles` に反映するキャッシュ列とする（都度全体集計は無料枠のDB負荷的に不可）。
+- パーセンタイル（`influence_percentile`, `intellect_percentile`）は定期バッチ（Supabase Scheduled Function / pg_cron）で再計算し、`profiles` に反映するキャッシュ列とする（都度全体集計は無料枠のDB負荷的に不可）。全ユーザー平均値のキャッシュ（`score_stats`）と日次推移（`user_score_history`）も同様に定期バッチで生成する（2章「平均値・日次推移」参照）。
 - `reach_score` を0にすることでフィード表示ロジック（Edge FunctionまたはPostgRESTのview）が自動的にそのポストを除外する。
 - `quiz_questions.locale` によりユーザーの `profiles.locale` に応じた出題切り替えを行う。日本語ローカライズが手薄な初期段階では英語問題を出しフォールバックする設計とする。
 - `likes` / `comments` / `reposts` の件数はフィード取得時にPostgRESTの集計embed（例: `select=*,likes(count),comments(count),reposts(count)`）で都度取得する。MVP規模（無料枠、投稿数少数）ではキャッシュ列を持たず都度集計で十分と判断し、将来的に投稿数が増えた場合は`posts`テーブルへの非正規化カウンタ列導入を検討する（[12章](#12-無料枠を前提とした制約とスケーリング方針)の考え方に準拠）。
@@ -327,6 +356,15 @@ create table public.moderation_checks (
 
 初期はシンプルな加重平均から開始し、将来的にIRT（項目反応理論）ベースのベイズ推定モデルへ移行できるよう、`quiz_responses` に生ログを全て保持する設計とする（Edge Function内のロジックを差し替えるだけで移行可能）。
 
+### 平均値・日次推移（プロフィール画面の比較表示）
+
+- `profiles.intellect_percentile` / `influence_percentile` は「値が小さいほど上位」のパーセンタイルであり、母集団平均は理論上50付近になるが、クイズ未回答ユーザーが`intellect_score=0`に集中する等の理由で実際の分布には偏りが生じる。そのため平均値は都度計算せず、`recalculate_score_stats()`（`public.inverse_normal_cdf`によるIQ換算を内部で使用、`lib/shared/iq_format.dart`のAcklamの近似式のSQL移植）で全ユーザーの平均IQ・平均Influenceパーセンタイルを算出し `score_stats`（シングルトン行）へキャッシュする。
+  - Intellect: 自分のIQ（`intellect_percentile`をIQ換算した値）と `score_stats.avg_intellect_iq` の差分を「平均より+N」として表示する。
+  - Influence: 自分の `influence_percentile` と `score_stats.avg_influence_percentile` の差分（ポイント差）を「平均より+N」として表示する。
+- 日次推移は `snapshot_daily_scores()` が `profiles` の現在値を `user_score_history` に1日1行（`unique(user_id, snapshot_date)`のupsert）で記録する。プロフィール画面の前日比は直近の`user_score_history`行と現在値の差分から算出する。
+- `recalculate_intellect_scores()` / `recalculate_influence_scores()` は既存どおり30分おきのpg_cronで実行し続け、`recalculate_score_stats()` と `snapshot_daily_scores()` は1日1回のpg_cronジョブ（`daily-score-snapshot`）として追加する（3章）。
+- プロフィール画面ではIQ表示部分・Influence表示部分をタップすると、`user_score_history`を時系列に取得し折れ線グラフ（`fl_chart`）で推移を表示するボトムシートを開く。グラフには`score_stats`から取得した平均値を基準線（水平線）として重ねる（product.md 3.10節）。
+
 ---
 
 ## 3. バックエンド構成（Supabase各機能の使い分け）
@@ -336,7 +374,7 @@ create table public.moderation_checks (
 | **Auth** | メール/パスワード + Google Sign-In（OAuth）、`auth.users` と `profiles` の1:1連携（トリガーで自動作成） |
 | **Postgres + RLS** | 全データの永続化。RLSで「本人のみ更新可」「公開読み取り可」等を制御 |
 | **Edge Functions** | (1) AIドメインラベリング（Gemini API呼び出し） (2) クイズ自動生成・マルチエージェント検証パイプライン（6章） (3) スコア再計算バッチ (4) ロジックチェック/ベット精算 (5) ストライク判定・実行 (6) 不正検知 (7) FCMプッシュ通知送信 (8) Mux Direct Upload URL発行・Mux Webhook受信（5章） (9) UGCモデレーション（画像/動画/テキストの自動チェック、13章） |
-| **pg_cron / Scheduled Functions** | パーセンタイル再計算、バトル解決（`resolves_at` 到達時の精算）、デイリーミッションのリセット、クイズ問題プールの自動補充 |
+| **pg_cron / Scheduled Functions** | パーセンタイル再計算（30分毎）、平均値キャッシュ再計算・日次スコアスナップショット記録（`recalculate_score_stats()`/`snapshot_daily_scores()`、1日1回）、バトル解決（`resolves_at` 到達時の精算）、デイリーミッションのリセット、クイズ問題プールの自動補充 |
 | **Storage** | 投稿メディア（画像/動画）、アバター画像 |
 | **Realtime** | バトルの投票数・ベット状況の**アプリ起動中のライブ更新**（インアプリのみ。バックグラウンド通知はFirebase FCMが担当） |
 | **PostgREST (自動API)** | Flutterからの標準CRUD |
@@ -605,7 +643,7 @@ lib/
 - **アニメーション**: `rive` または `lottie` をバッジ実績解除・バトル結果発表に使用。
 - **通報/モデレーション**: すべての投稿・動画・プロフィールに通報導線（`RengaReportSheet` 等の共通コンポーネント）を用意し、`reports` テーブルへ書き込む（詳細は [13章](#13-コンテンツモデレーショントrust--safety)）。
 - **共有**: OS標準の共有シートを開くために `share_plus` を使用する（投稿の共有ボタン。3.12節）。`receive_sharing_intent`（既存導入済み、5.3節）は他アプリからの共有受信専用であり、送信側の共有には使わない。
-- **設定・編集系UIの方針**: Profile画面の「編集」ボタンのように、既存の読み取り専用ビュー上で完結する軽い編集は引き続き`showModalBottomSheet`のボトムシートに分離する（`lib/features/feed/intellect_badge.dart`の説明ボトムシートと同じ角丸・パディングの意匠を踏襲）。一方、**Settings画面配下の各設定変更**（プロフィール編集・パスワード変更・アカウント削除・表示設定・表示言語）は、Settings画面自体をリンク一覧に留め、それぞれ`go_router`の子ルート（例: `/settings/profile`, `/settings/password`, `/settings/delete-account`, `/settings/display`, `/settings/language`）としてフルページ遷移させる方針に統一する（product.md 3.11節）。**ボトムシート共通ルール**: どちらの形式でも「キャンセル」専用ボタンは置かず、シートを閉じる操作自体をキャンセルとして扱う（product.md 5章）。
+- **設定・編集系UIの方針**: Profile画面の「編集」ボタンのように、既存の読み取り専用ビュー上で完結する軽い編集は引き続き`showModalBottomSheet`のボトムシートに分離する（`lib/features/feed/intellect_badge.dart`の説明ボトムシートと同じ角丸・パディングの意匠を踏襲）。投稿の新規作成（Compose）も同じ方針で、Feed画面のAppBar投稿ボタンから`ComposeSheet`（`lib/features/feed/compose_sheet.dart`）を`showModalBottomSheet`（`isScrollControlled: true`）で開く（`lib/features/profile/profile_edit_sheet.dart`の`ProfileEditSheet`と同一パターン）。YouTubeアプリ等からの共有シート起動（5.3節）時は、`go_router`の`/compose`ルートを共有テキスト付きディープリンクの薄い受け口として残し、遷移後すぐに同じ`ComposeSheet`をボトムシートとして開く。一方、**Settings画面配下の各設定変更**（プロフィール編集・パスワード変更・アカウント削除・表示設定・表示言語）は、Settings画面自体をリンク一覧に留め、それぞれ`go_router`の子ルート（例: `/settings/profile`, `/settings/password`, `/settings/delete-account`, `/settings/display`, `/settings/language`）としてフルページ遷移させる方針に統一する（product.md 3.11節）。**ボトムシート共通ルール**: どちらの形式でも「キャンセル」専用ボタンは置かず、シートを閉じる操作自体をキャンセルとして扱う（product.md 5章）。
 - **アカウント削除**: クライアントから`auth.users`を直接削除できないため、Supabase Edge Function `delete_account`（サービスロールキーを保持）を新設し、認証済みユーザー自身のリクエストのみ受け付けて`auth.users`を削除する（`profiles`は`on delete cascade`で連動削除）。呼び出し前にクライアント側で確認ステップ（再ログインまたはユーザー名再入力）を必須とする。
 - **他ユーザーのプロフィール閲覧**: `go_router`に`/profile/:userId`ルートを追加し、フィード・コメント等のアバター/ユーザー名タップから遷移する。既存の`/profile`（自分のプロフィール、ボトムナビタブ）とはルート・Widgetを分け、`ProfilePage`は`userId`を受け取れるよう拡張し、閲覧者が本人かどうかで編集ボタン・ログアウトボタン等の表示を出し分ける（product.md 3.10節）。
 
