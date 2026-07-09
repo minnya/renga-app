@@ -71,13 +71,19 @@ final hasCompletedOnboardingProvider = FutureProvider<bool>((ref) async {
   return rows.isNotEmpty;
 });
 
-/// 現在のユーザーが本日デイリークイズに回答済みかどうか（ローカル日付の0時基準）。
+/// 現在のユーザーが本日デイリークイズに回答済みかどうか（UTC日付の0時基準）。
+///
+/// サーバー側の`award_daily_completion_tp` RPC（達成済み判定・連続日数計算）はUTC日付
+/// (`(now() at time zone 'utc')::date`)を基準にしている。ここをローカル日付の0時で判定すると、
+/// UTCとの時差分だけ「クライアント上は未達成に見えるがRPCは達成済みとして例外を返す」
+/// 期間が生まれてしまう（例: JSTは UTC+9 のため、ローカル日付が変わってから9時間はUTC日付が
+/// 変わっていない）ため、必ずUTC基準で揃える。
 final hasCompletedDailyTodayProvider = FutureProvider<bool>((ref) async {
   final userId = ref.watch(currentUserProvider)?.id;
   if (userId == null) return false;
 
-  final now = DateTime.now();
-  final startOfDay = DateTime(now.year, now.month, now.day).toUtc();
+  final nowUtc = DateTime.now().toUtc();
+  final startOfDay = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day);
 
   final rows = await supabase
       .from('quiz_responses')
