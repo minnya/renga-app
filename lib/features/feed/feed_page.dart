@@ -376,6 +376,7 @@ class _PostTileState extends ConsumerState<PostTile> {
     final l10n = AppLocalizations.of(context);
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -419,6 +420,7 @@ class _PostTileState extends ConsumerState<PostTile> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -428,7 +430,7 @@ class _PostTileState extends ConsumerState<PostTile> {
 
   /// design/product.md 3.13節「タップで全画面表示」。共通の全画面メディアビューアを開く。
   void _openFullscreenImage(List<String> imageUrls, int index) {
-    Navigator.of(context).push(
+    Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => FullscreenMediaViewer(
           imageUrls: imageUrls,
@@ -439,7 +441,7 @@ class _PostTileState extends ConsumerState<PostTile> {
   }
 
   void _openFullscreenVideo(String playbackId) {
-    Navigator.of(context).push(
+    Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => FullscreenMediaViewer(videoPlaybackId: playbackId),
       ),
@@ -494,67 +496,76 @@ class _PostTileState extends ConsumerState<PostTile> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header: Avatar + Username + Created At
+              // design/product.md 3.12節「ユーザー情報表示部のタップ範囲」。
+              // アバター・ユーザー名・バッジを含む一帯を単一のGestureDetectorでラップし、
+              // どこを押してもプロフィールへ遷移するようにする。IntellectBadge自体は
+              // `enableTapDetail: false`でバッジ詳細シートを無効化し、このタップを奪わない。
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(
-                    onTap: () => context.push('/profile/${post.authorId}'),
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primary.withAlpha((0.3 * 255).toInt()),
-                      child: Text(
-                        firstLetter,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          onTap: () =>
-                              context.push('/profile/${post.authorId}'),
-                          child: Text(
-                            authorName,
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        // Metadata row: Badge + Staked TP (if applicable)
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            IntellectBadge(
-                              percentile: post.authorIntellectPercentile,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => context.push('/profile/${post.authorId}'),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary.withAlpha((0.3 * 255).toInt()),
+                            child: Text(
+                              firstLetter,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
-                            if (post.postType == 'staked')
-                              Chip(
-                                avatar: const Icon(Icons.bolt, size: 14),
-                                label: Text(
-                                  l10n.feedStakedTpLabel(post.stakedTp as int),
-                                  style: const TextStyle(fontSize: 11),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  authorName,
+                                  style: Theme.of(context).textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                visualDensity: VisualDensity.compact,
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.tertiaryContainer,
-                              ),
-                          ],
-                        ),
-                      ],
+                                // Metadata row: Badge + Staked TP (if applicable)
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: [
+                                    IntellectBadge(
+                                      percentile: post.authorIntellectPercentile,
+                                      enableTapDetail: false,
+                                    ),
+                                    if (post.postType == 'staked')
+                                      Chip(
+                                        avatar: const Icon(Icons.bolt, size: 14),
+                                        label: Text(
+                                          l10n.feedStakedTpLabel(post.stakedTp as int),
+                                          style: const TextStyle(fontSize: 11),
+                                        ),
+                                        visualDensity: VisualDensity.compact,
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.tertiaryContainer,
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),

@@ -55,9 +55,14 @@ String _getDescriptionKey(IntellectBadgeTier tier) {
 /// パーセンタイルが上位25%未満（バッジ対象外）の場合は何も表示しない。
 /// フィード（`feed_page.dart`）とプロフィール（`profile_page.dart`）の両方から再利用する。
 class IntellectBadge extends StatelessWidget {
-  const IntellectBadge({super.key, required this.percentile});
+  const IntellectBadge({super.key, required this.percentile, this.enableTapDetail = true});
 
   final num? percentile;
+
+  /// design/product.md 3.12節: 投稿カード内では、バッジタップも含めユーザー情報表示部
+  /// 全体をプロフィール遷移のタップ領域にするため、バッジ自身の詳細ボトムシートは無効化する
+  /// （`false`時はタップを一切ハンドリングせず、外側のGestureDetectorに委ねる）。
+  final bool enableTapDetail;
 
   void _showBadgeDetailsBottomSheet(BuildContext context, IntellectBadgeTier tier) {
     final l10n = AppLocalizations.of(context);
@@ -67,6 +72,7 @@ class IntellectBadge extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -142,7 +148,7 @@ class IntellectBadge extends StatelessWidget {
 
     final color = intellectBadgeColor(tier);
     return GestureDetector(
-      onTap: () => _showBadgeDetailsBottomSheet(context, tier),
+      onTap: enableTapDetail ? () => _showBadgeDetailsBottomSheet(context, tier) : null,
       child: Chip(
         label: Text(intellectBadgeLabel(tier)),
         labelStyle: TextStyle(fontSize: 11, color: color.shade900),

@@ -66,6 +66,7 @@ class _ConversationTile extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       builder: (sheetContext) {
         return SafeArea(
           child: Column(

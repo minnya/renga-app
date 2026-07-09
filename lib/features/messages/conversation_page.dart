@@ -356,7 +356,7 @@ class _MessageBubble extends StatelessWidget {
     Widget content;
     if (message.isImage && message.mediaUrl != null) {
       content = GestureDetector(
-        onTap: () => Navigator.of(context).push(
+        onTap: () => Navigator.of(context, rootNavigator: true).push(
           MaterialPageRoute<void>(
             builder: (_) => FullscreenMediaViewer(imageUrls: [message.mediaUrl!]),
           ),
@@ -372,7 +372,7 @@ class _MessageBubble extends StatelessWidget {
       );
     } else if (message.isVideo && message.muxPlaybackId != null) {
       content = GestureDetector(
-        onTap: () => Navigator.of(context).push(
+        onTap: () => Navigator.of(context, rootNavigator: true).push(
           MaterialPageRoute<void>(
             builder: (_) => FullscreenMediaViewer(videoPlaybackId: message.muxPlaybackId!),
           ),

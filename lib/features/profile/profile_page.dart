@@ -240,6 +240,7 @@ class _SignedInProfileView extends ConsumerWidget {
                     onPressed: () => showModalBottomSheet<void>(
                       context: context,
                       isScrollControlled: true,
+                      useRootNavigator: true,
                       shape: const RoundedRectangleBorder(
                         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                       ),
@@ -268,7 +269,7 @@ class _SignedInProfileView extends ConsumerWidget {
       children: [
         GestureDetector(
           onTap: hasAvatar
-              ? () => Navigator.of(context).push(
+              ? () => Navigator.of(context, rootNavigator: true).push(
                     MaterialPageRoute<void>(
                       builder: (_) => FullscreenMediaViewer(imageUrls: [avatarUrl]),
                     ),

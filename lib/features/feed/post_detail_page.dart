@@ -243,7 +243,7 @@ class _CommentRow extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final urls = comment.mediaUrls!;
                         return GestureDetector(
-                          onTap: () => Navigator.of(context).push(
+                          onTap: () => Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute<void>(
                               builder: (_) =>
                                   FullscreenMediaViewer(imageUrls: urls, initialImageIndex: index),

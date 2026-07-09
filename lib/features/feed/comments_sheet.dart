@@ -209,7 +209,7 @@ class _CommentsBottomSheetState extends ConsumerState<CommentsBottomSheet> {
           separatorBuilder: (context, index) => const SizedBox(width: 6),
           itemBuilder: (context, index) {
             return GestureDetector(
-              onTap: () => Navigator.of(context).push(
+              onTap: () => Navigator.of(context, rootNavigator: true).push(
                 MaterialPageRoute<void>(
                   builder: (_) => FullscreenMediaViewer(imageUrls: urls, initialImageIndex: index),
                 ),
