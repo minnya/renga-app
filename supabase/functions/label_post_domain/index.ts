@@ -84,13 +84,48 @@ ${text}
 `;
 }
 
+// Geminiは`responseMimeType: 'application/json'`指定時でも、まれに有効なJSONオブジェクトの後に
+// 余分なテキストを付け足すことがあるため、波括弧の深さを数えて最初の完全なJSONオブジェクトのみを抽出する。
+function extractJsonObject(rawText: string): string {
+  const stripped = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  const start = stripped.indexOf('{');
+  if (start === -1) return stripped;
+
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+  for (let i = start; i < stripped.length; i++) {
+    const ch = stripped[i];
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escapeNext = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return stripped.slice(start, i + 1);
+    }
+  }
+  return stripped;
+}
+
 function parseGeminiLabels(rawText: string): GeminiLabel[] | null {
   try {
-    const cleaned = rawText
-      .trim()
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/```\s*$/i, '')
-      .trim();
+    const cleaned = extractJsonObject(rawText);
     const parsed = JSON.parse(cleaned);
 
     if (!Array.isArray(parsed?.labels)) return null;

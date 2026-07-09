@@ -55,12 +55,48 @@ function randomDifficulty(): number {
   return 1 + Math.floor(Math.random() * 5); // 1-5
 }
 
+// Geminiは`responseMimeType: 'application/json'`指定時でも、まれに有効なJSONオブジェクトの後に
+// 余分なテキストを付け足すことがある（観測例: 問題文中の改行を含む長い出力の末尾に断片が付与される）。
+// そのため単純なtrim/コードフェンス除去だけでなく、最初の`{`から対応する`}`までを
+// 波括弧の深さを数えて抽出し、末尾の余分な文字列を切り捨てる。
 function cleanJson(rawText: string): string {
-  return rawText
+  const stripped = rawText
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
+
+  const start = stripped.indexOf('{');
+  if (start === -1) return stripped;
+
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+  for (let i = start; i < stripped.length; i++) {
+    const ch = stripped[i];
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escapeNext = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        return stripped.slice(start, i + 1);
+      }
+    }
+  }
+  // 対応する閉じ括弧が見つからなければ、そのままJSON.parseに渡してエラーとして扱う。
+  return stripped;
 }
 
 // 直近のGemini呼び出し失敗理由。run失敗時にレスポンスへ含め、外部cron側のログで

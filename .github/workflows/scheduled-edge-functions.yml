@@ -1,0 +1,30 @@
+name: Scheduled Edge Functions
+
+# design/system.md 6.2節「クイズ自動生成 + マルチエージェント検証パイプライン」・
+# 12章「pg_cronが使えない無料プランではEdge Functionを外部cronから叩く」に対応。
+# Supabase無料プランはpg_cronからのHTTP呼び出し（pg_net）が使えないため、
+# 代わりにGitHub Actionsのscheduleトリガーで定期的にEdge Functionを叩く。
+#
+# 事前準備: このリポジトリのSettings > Secrets and variables > Actions に
+# 以下のSecretsを登録すること（値はSupabase側のFunction Secretsと同じものを使う）:
+#   - SUPABASE_URL
+#   - SUPABASE_ANON_KEY
+#   - QUIZ_GENERATION_CRON_SECRET
+on:
+  schedule:
+    # Gemini無料枠のレート制限に配慮し、30分ごとに1問だけ生成する。
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  generate-quiz-batch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call generate_quiz_batch
+        run: |
+          curl -sf -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/generate_quiz_batch" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "X-Cron-Secret: ${{ secrets.QUIZ_GENERATION_CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 90
