@@ -11,7 +11,7 @@ import '../features/battle/battle_detail_page.dart';
 import '../features/battle/battle_list_page.dart';
 import '../features/debug/connection_check_page.dart';
 import '../features/discover/discover_page.dart';
-import '../features/feed/compose_page.dart';
+import '../features/feed/compose_sheet.dart';
 import '../features/feed/feed_page.dart';
 import '../features/feed/post_detail_page.dart';
 import '../features/messages/conversation_page.dart';
@@ -202,12 +202,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           PostDetailPage(postId: state.pathParameters['postId']!),
         ),
       ),
+      // design/system.md「設定・編集系UIの方針」: Composeは通常Feed画面の投稿ボタンから
+      // `showComposeSheet`でボトムシートとして開くため、専用ルートは持たない。ただし
+      // 共有シート経由の起動（main.dartが共有テキストを`extra`に載せてBuildContextなしで
+      // `/compose`へpushする、design/product.md 3.1節）に対応するため、遷移直後に
+      // ComposeSheetを開く薄いルートとしてのみ残す。
       GoRoute(
         path: '/compose',
-        // design/product.md 3.1節「YouTubeアプリの共有シートに登場」。
-        // 共有シート経由の起動時、main.dartが共有テキストを`extra`に載せて`/compose`へ遷移させる。
-        pageBuilder: (context, state) =>
-            _fadeSlidePage(context, state, ComposePage(initialBody: state.extra as String?)),
+        builder: (context, state) => ComposeRoutePage(initialBody: state.extra as String?),
       ),
       GoRoute(
         path: '/notifications',

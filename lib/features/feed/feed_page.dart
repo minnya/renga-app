@@ -13,6 +13,7 @@ import '../../shared/time_format.dart';
 import '../quiz/quiz_controller.dart';
 import '../discover/discover_controller.dart' show domainDisplayLabel;
 import 'comments_sheet.dart';
+import 'compose_sheet.dart';
 import 'feed_controller.dart';
 import 'fullscreen_media_viewer.dart';
 import 'intellect_badge.dart';
@@ -39,7 +40,8 @@ class FeedPage extends ConsumerWidget {
     // design/system.md 9章「Flutterアプリ構成」: 文言はAppLocalizations経由で取得する（gen-l10n生成）。
     final l10n = AppLocalizations.of(context);
     // design/product.md 3.15節「デイリーミッションの受験可否・クールダウン表示」。
-    final hasCompletedDailyToday = ref.watch(hasCompletedDailyTodayProvider).value ?? false;
+    final hasCompletedDailyToday =
+        ref.watch(hasCompletedDailyTodayProvider).value ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -49,7 +51,9 @@ class FeedPage extends ConsumerWidget {
           if (currentUser != null) ...[
             IconButton(
               tooltip: '投稿',
-              onPressed: () => context.push('/compose'),
+              // design/system.md「設定・編集系UIの方針」: Composeはボトムシートとして開く
+              // （ProfileEditSheetと同じ`showModalBottomSheet`パターン）。
+              onPressed: () => showComposeSheet(context),
               icon: const Icon(Icons.add_box_outlined),
             ),
             IconButton(
@@ -62,8 +66,12 @@ class FeedPage extends ConsumerWidget {
               const SizedBox(width: 4),
             ],
             IconButton(
-              tooltip: hasCompletedDailyToday ? l10n.feedDailyQuizCompletedTooltip : l10n.feedDailyQuizTooltip,
-              onPressed: hasCompletedDailyToday ? null : () => context.push('/daily-quiz'),
+              tooltip: hasCompletedDailyToday
+                  ? l10n.feedDailyQuizCompletedTooltip
+                  : l10n.feedDailyQuizTooltip,
+              onPressed: hasCompletedDailyToday
+                  ? null
+                  : () => context.push('/daily-quiz'),
               icon: const Icon(Icons.quiz_outlined),
             ),
           ],
@@ -76,9 +84,18 @@ class FeedPage extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: SegmentedButton<LayerFilter>(
               segments: [
-                ButtonSegment(value: LayerFilter.all, label: Text(l10n.feedFilterAll)),
-                ButtonSegment(value: LayerFilter.top25, label: Text(l10n.feedFilterTop25)),
-                ButtonSegment(value: LayerFilter.top5, label: Text(l10n.feedFilterTop5)),
+                ButtonSegment(
+                  value: LayerFilter.all,
+                  label: Text(l10n.feedFilterAll),
+                ),
+                ButtonSegment(
+                  value: LayerFilter.top25,
+                  label: Text(l10n.feedFilterTop25),
+                ),
+                ButtonSegment(
+                  value: LayerFilter.top5,
+                  label: Text(l10n.feedFilterTop5),
+                ),
               ],
               selected: {layer},
               onSelectionChanged: (selection) {
@@ -111,7 +128,8 @@ class FeedPage extends ConsumerWidget {
 
                   return ListView.separated(
                     itemCount: itemCount,
-                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final isAdSlot = (index + 1) % blockSize == 0;
                       if (isAdSlot) {
@@ -136,8 +154,8 @@ class FeedPage extends ConsumerWidget {
           ),
         ],
       ),
-      // design/product.md 4章: 投稿作成はボトムナビゲーション中央のComposeタブに統一したため、
-      // Feed画面独自のFABは撤去する（X/Instagram同様、投稿導線をボトムナビに一本化）。
+      // design/product.md 4章: 投稿作成はAppBarの投稿ボタンからComposeSheetを開く方式に
+      // 統一したため、Feed画面独自のFABは撤去する。
     );
   }
 }
@@ -148,7 +166,8 @@ class _DailyQuizCooldownLabel extends StatefulWidget {
   const _DailyQuizCooldownLabel();
 
   @override
-  State<_DailyQuizCooldownLabel> createState() => _DailyQuizCooldownLabelState();
+  State<_DailyQuizCooldownLabel> createState() =>
+      _DailyQuizCooldownLabelState();
 }
 
 class _DailyQuizCooldownLabelState extends State<_DailyQuizCooldownLabel> {
@@ -170,7 +189,11 @@ class _DailyQuizCooldownLabelState extends State<_DailyQuizCooldownLabel> {
 
   String _formatRemaining() {
     final nowUtc = DateTime.now().toUtc();
-    final nextResetUtc = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day).add(const Duration(days: 1));
+    final nextResetUtc = DateTime.utc(
+      nowUtc.year,
+      nowUtc.month,
+      nowUtc.day,
+    ).add(const Duration(days: 1));
     final remaining = nextResetUtc.difference(nowUtc);
     final hours = remaining.inHours.toString().padLeft(2, '0');
     final minutes = (remaining.inMinutes % 60).toString().padLeft(2, '0');
@@ -208,7 +231,9 @@ class _OnboardingQuizBanner extends ConsumerWidget {
           child: ListTile(
             leading: const Icon(Icons.school_outlined),
             title: Text(AppLocalizations.of(context).feedOnboardingBannerTitle),
-            subtitle: Text(AppLocalizations.of(context).feedOnboardingBannerSubtitle),
+            subtitle: Text(
+              AppLocalizations.of(context).feedOnboardingBannerSubtitle,
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/onboarding-quiz'),
           ),
@@ -237,7 +262,8 @@ class _ActionBarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? Theme.of(context).colorScheme.onSurfaceVariant;
+    final effectiveColor =
+        color ?? Theme.of(context).colorScheme.onSurfaceVariant;
     return GestureDetector(
       onTap: onPressed,
       child: Row(
@@ -248,7 +274,9 @@ class _ActionBarButton extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '$count',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: effectiveColor),
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: effectiveColor),
             ),
           ],
         ],
@@ -256,7 +284,6 @@ class _ActionBarButton extends StatelessWidget {
     );
   }
 }
-
 
 /// 投稿1件のカード表示。フィード一覧・投稿詳細画面（[PostDetailPage]）の両方から使う。
 ///
