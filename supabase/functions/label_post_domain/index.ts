@@ -28,7 +28,7 @@ function jsonResponse(body: unknown, status: number) {
   });
 }
 
-const GEMINI_MODEL = 'gemini-3-flash-preview';
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const GEMINI_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
@@ -156,8 +156,8 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// `gemini-3-flash-preview`はプレビューモデルのため「高負荷につき503」を一時的に
-// 返すことがある。429/503は指数バックオフでリトライする。
+// 無料枠のレート制限（429）や一時的な過負荷（503）を返すことがあるため、
+// 429/503は指数バックオフでリトライする。
 async function runGeminiLabeling(text: string): Promise<GeminiLabel[] | null> {
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) {

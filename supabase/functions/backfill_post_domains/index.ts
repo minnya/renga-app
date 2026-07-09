@@ -11,7 +11,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const GEMINI_MODEL = 'gemini-3-flash-preview';
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const GEMINI_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 

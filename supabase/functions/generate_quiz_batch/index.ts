@@ -5,7 +5,7 @@
 // - Gemini無料枠のレート制限（1分あたりのリクエスト数が少ない）を考慮し、1回の呼び出しで生成する
 //   候補問題は1問のみとする（Generator 1回 + Solver 3回 + Validator 1回 = 計5回のGemini呼び出し）。
 //   各呼び出しの間に約2秒のディレイを挟み、瞬間的なレート超過を避ける。
-// - 全段階でモデルは `gemini-3-flash-preview`（軽量モデル）に統一する。Proモデルは使わない。
+// - 全段階でモデルは `gemini-3.1-flash-lite`（軽量モデル）に統一する。Proモデルは使わない。
 // - recalculate_scoresと同じ`X-Cron-Secret`パターンで保護する
 //   （環境変数名: `QUIZ_GENERATION_CRON_SECRET`）。外部cron（GitHub Actions等）から定期HTTP呼び出しされる想定。
 // - 採否ロジックはコード側で判定する（AIに丸投げしない）:
@@ -18,7 +18,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const GEMINI_MODEL = 'gemini-3-flash-preview';
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const GEMINI_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
@@ -110,8 +110,8 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Gemini呼び出しの共通ヘルパー。`gemini-3-flash-preview`はプレビューモデルのため
-// 「高負荷につき503」を一時的に返すことがある。429/503は指数バックオフで最大
+// Gemini呼び出しの共通ヘルパー。無料枠のレート制限（429）や一時的な過負荷（503）を
+// 返すことがある。429/503は指数バックオフで最大
 // GEMINI_MAX_ATTEMPTS回までリトライし、それでも失敗したらnullを返す（呼び出し元でrun失敗として扱う）。
 async function callGemini(prompt: string): Promise<string | null> {
   const apiKey = Deno.env.get('GEMINI_API_KEY');
