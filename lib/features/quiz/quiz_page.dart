@@ -98,10 +98,20 @@ class _QuizPageState extends ConsumerState<QuizPage> {
   }
 
   /// フィードバック画面の「次へ」/「結果を見る」ボタン押下時。
+  ///
+  /// 修正: 従来は`_showingFeedback`を先にfalseへ倒してから最後の設問の場合のみ
+  /// `_handleFinish`をawaitしていたため、デイリーミッションのTP付与RPC等の完了を
+  /// 待つ間、`_finished`はまだfalseのまま再描画され、フィードバック画面ではなく
+  /// 直前の設問画面が一瞬（通信が遅い場合は数秒）再表示されてしまい、「結果を見る」
+  /// ボタンを押しても結果が出ないように見えるバグがあった。次の設問へ進む場合と
+  /// 結果サマリーへ進む場合のいずれも、フィードバック非表示と次状態への遷移を
+  /// 同一のsetStateにまとめることで、中間状態の描画を発生させないようにする。
   Future<void> _handleNext() async {
-    setState(() => _showingFeedback = false);
     if (_currentIndex + 1 < _questions!.length) {
-      setState(() => _currentIndex++);
+      setState(() {
+        _showingFeedback = false;
+        _currentIndex++;
+      });
       _startQuestionTimer(_questions![_currentIndex]);
     } else {
       await _handleFinish();
@@ -115,7 +125,10 @@ class _QuizPageState extends ConsumerState<QuizPage> {
     }
     ref.read(quizControllerProvider).invalidateCompletionStatus();
     if (!mounted) return;
-    setState(() => _finished = true);
+    setState(() {
+      _showingFeedback = false;
+      _finished = true;
+    });
   }
 
   @override
