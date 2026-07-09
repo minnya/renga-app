@@ -20,6 +20,7 @@ import 'intellect_badge.dart';
 import 'media_carousel.dart';
 import 'native_ad_tile.dart';
 import 'post.dart';
+import 'quoted_post_card.dart';
 import 'video_player_widget.dart';
 
 /// design/system.md 10章「マネタイズ（AdMob）実装」。投稿10件ごとにネイティブ広告を差し込む間隔。
@@ -367,6 +368,52 @@ class _PostTileState extends ConsumerState<PostTile> {
     }
   }
 
+  /// design/product.md 3.12節「リポスト（X風の2択ボトムシート）」。
+  /// リポストアイコンタップ時に「（取り消し付き）リポスト」「引用リポスト」の
+  /// 2択を提示する。「リポスト」選択時は既存の[_handleToggleRepost]をそのまま呼ぶため、
+  /// 単純リポストのトグル挙動自体は変更しない。
+  void _openRepostOptions(bool currentlyReposted) {
+    final l10n = AppLocalizations.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.repeat,
+                  color: currentlyReposted ? Colors.green : null,
+                ),
+                title: Text(
+                  currentlyReposted
+                      ? l10n.feedRepostSheetUndoRepostOption
+                      : l10n.feedRepostSheetRepostOption,
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _handleToggleRepost(currentlyReposted);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.format_quote_outlined),
+                title: Text(l10n.feedRepostSheetQuoteOption),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  showComposeSheet(context, quotedPost: post);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   /// design/product.md 3.12節「コメント」。ボトムシートでコメント一覧・投稿フォームを表示する。
   void _handleOpenComments() {
     showModalBottomSheet<void>(
@@ -603,6 +650,15 @@ class _PostTileState extends ConsumerState<PostTile> {
                       ),
                 const SizedBox(height: 12),
               ],
+              // design/product.md 3.12節「引用リポスト」。引用元投稿の要約ミニカード。
+              // タップで引用元投稿の詳細画面へ遷移する（一覧タップと同じ`/posts/:postId`遷移）。
+              if (post.quotedPost != null) ...[
+                QuotedPostCard(
+                  quotedPost: post.quotedPost!,
+                  onTap: () => openQuotedPostDetail(context, post.quotedPost!.id),
+                ),
+                const SizedBox(height: 12),
+              ],
               // Action bar: Like, Comment, Repost, Share（アイコンのみ。件数は1以上のみ表示）
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -622,7 +678,7 @@ class _PostTileState extends ConsumerState<PostTile> {
                     icon: Icons.repeat,
                     count: post.repostCount,
                     color: isReposted ? Colors.green : null,
-                    onPressed: () => _handleToggleRepost(isReposted),
+                    onPressed: () => _openRepostOptions(isReposted),
                   ),
                   _ActionBarButton(
                     icon: Icons.share_outlined,
