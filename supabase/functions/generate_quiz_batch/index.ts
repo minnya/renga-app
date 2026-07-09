@@ -1,9 +1,9 @@
 // design/system.md 6.2節「クイズ自動生成 + マルチエージェント検証パイプライン」に対応する
-// Edge Function。Generator（1問生成）→Solver（同一問題を独立に3回解く）→Validator（採否判定）の
+// Edge Function。Generator（N問まとめて生成）→Solver（同じN問を独立に3回解く）→Validator（N問まとめて採否判定）の
 // 3段階マルチエージェントパイプラインを1回の呼び出しで実行し、`quiz_questions` に候補を記録する。
 //
-// - Gemini無料枠のレート制限（1分あたりのリクエスト数が少ない）を考慮し、1回の呼び出しで生成する
-//   候補問題は1問のみとする（Generator 1回 + Solver 3回 + Validator 1回 = 計5回のGemini呼び出し）。
+// - 効率のため1問ずつではなく、1回の呼び出しでQUESTIONS_PER_BATCH問をまとめて生成・検証する
+//   （Generator 1回 + Solver 3回 + Validator 1回 = 計5回のGemini呼び出しでN問分をまかなう）。
 //   各呼び出しの間に約2秒のディレイを挟み、瞬間的なレート超過を避ける。
 // - 全段階でモデルは `gemini-3.1-flash-lite`（軽量モデル）に統一する。Proモデルは使わない。
 // - recalculate_scoresと同じ`X-Cron-Secret`パターンで保護する
@@ -13,6 +13,7 @@
 //     quiz_questions に is_active: true, validation_status: 'approved' でinsertする。
 //     それ以外は is_active: false とし、validation_statusはvalidatorの判定
 //     （'rejected' または 'human_review'）をそのまま使う（プールには出ないが記録は残す）。
+//     問題ごとに個別に判定するため、バッチ内の一部だけ採用/不採用になることがある。
 // - いずれかの段階でGemini呼び出し失敗・JSONパース失敗した場合は、runをstatus: 'failed'で更新し、
 //   例外を投げてクラッシュさせず200を返す（エラーはconsole.errorに残す）。
 
@@ -22,6 +23,7 @@ const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const GEMINI_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
+const QUESTIONS_PER_BATCH = 10;
 const SOLVER_COUNT = 3;
 const SOLVER_AGREEMENT_THRESHOLD = 0.8;
 const INTER_CALL_DELAY_MS = 2000;
@@ -29,16 +31,19 @@ const INTER_CALL_DELAY_MS = 2000;
 const QUESTION_TYPES = ['logic', 'geometry', 'current_events'] as const;
 type QuestionType = typeof QUESTION_TYPES[number];
 
-type GeneratorResult = {
+type GeneratorItem = {
+  question_type: QuestionType;
+  difficulty: number;
   payload: { question: string; choices: string[] };
   correct_answer: string;
   time_limit_seconds: number;
   explanation: string;
 };
 
-type SolverResult = { answer: string };
+type SolverAnswer = { index: number; answer: string };
 
-type ValidatorResult = {
+type ValidatorItem = {
+  index: number;
   verdict: 'approved' | 'rejected' | 'human_review';
   notes: string;
 };
@@ -47,18 +52,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function pickRandom<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
-function randomDifficulty(): number {
-  return 1 + Math.floor(Math.random() * 5); // 1-5
-}
-
 // Geminiは`responseMimeType: 'application/json'`指定時でも、まれに有効なJSONオブジェクトの後に
 // 余分なテキストを付け足すことがある（観測例: 問題文中の改行を含む長い出力の末尾に断片が付与される）。
-// そのため単純なtrim/コードフェンス除去だけでなく、最初の`{`から対応する`}`までを
-// 波括弧の深さを数えて抽出し、末尾の余分な文字列を切り捨てる。
+// そのため単純なtrim/コードフェンス除去だけでなく、最初の`{`（または`[`）から対応する
+// 閉じ括弧までを深さを数えて抽出し、末尾の余分な文字列を切り捨てる。
 function cleanJson(rawText: string): string {
   const stripped = rawText
     .trim()
@@ -66,7 +63,9 @@ function cleanJson(rawText: string): string {
     .replace(/```\s*$/i, '')
     .trim();
 
-  const start = stripped.indexOf('{');
+  const openChar = stripped[0] === '[' ? '[' : '{';
+  const closeChar = openChar === '[' ? ']' : '}';
+  const start = stripped.indexOf(openChar);
   if (start === -1) return stripped;
 
   let depth = 0;
@@ -87,8 +86,8 @@ function cleanJson(rawText: string): string {
       continue;
     }
     if (inString) continue;
-    if (ch === '{') depth++;
-    if (ch === '}') {
+    if (ch === openChar) depth++;
+    if (ch === closeChar) {
       depth--;
       if (depth === 0) {
         return stripped.slice(start, i + 1);
@@ -173,54 +172,69 @@ async function callGemini(prompt: string): Promise<string | null> {
   return null;
 }
 
-function buildGeneratorPrompt(questionType: QuestionType, difficulty: number, locale: string): string {
-  return `あなたはIQテスト風クイズの出題者です。以下の条件で問題を1問作成してください。
-- question_type: ${questionType}（logic=論理問題, geometry=図形・空間問題, current_events=時事問題）
-- difficulty: ${difficulty}（1が最も易しく、5が最も難しい）
+function buildGeneratorPrompt(count: number, locale: string): string {
+  return `あなたはIQテスト風クイズの出題者です。以下の条件で問題を${count}問作成してください。
+- 各問題は question_type（logic=論理問題, geometry=図形・空間問題, current_events=時事問題）を
+  バランスよく混ぜてください。
+- 各問題の difficulty は1〜5の範囲でバランスよく混ぜてください（1が最も易しく、5が最も難しい）。
 - locale: ${locale}（出題言語）
 - 選択肢は4つ程度にしてください。
+- ${count}問はすべて異なる内容にしてください（同工異曲の問題を作らないでください）。
 
 判定結果は必ず以下の厳密なJSON形式のみで返してください。説明文やMarkdownのコードフェンスは一切含めないでください:
-{"payload": {"question": string, "choices": string[]}, "correct_answer": string, "time_limit_seconds": number, "explanation": string}
+{"items": [{"question_type": string, "difficulty": number, "payload": {"question": string, "choices": string[]}, "correct_answer": string, "time_limit_seconds": number, "explanation": string}]}
 
-- correct_answerはchoicesの中のいずれか1つと完全に一致する文字列にしてください。
+- itemsはちょうど${count}件にしてください。
+- correct_answerはそれぞれのchoicesの中のいずれか1つと完全に一致する文字列にしてください。
 - time_limit_secondsは難易度に応じた妥当な制限時間（秒）にしてください。
 - explanationには正解の簡潔な解説を含めてください。
 `;
 }
 
-function buildSolverPrompt(question: string, choices: string[]): string {
-  return `あなたはクイズの回答者です。以下の設問に対して、選択肢の中から最も正しいと思うものを1つ選んでください。
+function buildSolverPrompt(items: GeneratorItem[]): string {
+  const questionsText = items
+    .map((item, index) => `[${index}] 問題: ${item.payload.question}\n選択肢: ${item.payload.choices.join(' / ')}`)
+    .join('\n\n');
 
-問題: ${question}
-選択肢: ${choices.join(' / ')}
+  return `あなたはクイズの回答者です。以下の${items.length}問それぞれについて、選択肢の中から最も正しいと思うものを1つ選んでください。
+
+${questionsText}
 
 回答は必ず以下の厳密なJSON形式のみで返してください。説明文やMarkdownのコードフェンスは一切含めないでください:
-{"answer": string}
+{"answers": [{"index": number, "answer": string}]}
 
-- answerはchoicesの中のいずれか1つと完全に一致する文字列にしてください。
+- answersはちょうど${items.length}件、[]内のindex番号と対応させてください。
+- answerはその問題のchoicesの中のいずれか1つと完全に一致する文字列にしてください。
 `;
 }
 
-function buildValidatorPrompt(
-  question: string,
-  choices: string[],
-  correctAnswer: string,
-  solverAnswers: string[],
-): string {
-  return `あなたはクイズ問題の品質検証者です。以下の設問・選択肢・想定正解・複数の回答者（Solver）の回答ログを確認し、
-この問題をそのまま出題してよいか判定してください。曖昧さ、事実正確性、攻撃的表現の有無、難易度の妥当性、
-（既存問題との類似は今回は判定不要）を簡易的にチェックしてください。
+function buildValidatorPrompt(items: GeneratorItem[], solverRounds: SolverAnswer[][]): string {
+  const questionsText = items
+    .map((item, index) => {
+      const answersForIndex = solverRounds.map((round) => round.find((a) => a.index === index)?.answer ?? null);
+      return `[${index}] 問題: ${item.payload.question}\n選択肢: ${item.payload.choices.join(' / ')}\n想定正解: ${item.correct_answer}\nSolverの回答ログ: ${JSON.stringify(answersForIndex)}`;
+    })
+    .join('\n\n');
 
-問題: ${question}
-選択肢: ${choices.join(' / ')}
-想定正解: ${correctAnswer}
-Solverの回答ログ: ${JSON.stringify(solverAnswers)}
+  return `あなたはクイズ問題の品質検証者です。以下の${items.length}問それぞれについて、設問・選択肢・想定正解・
+複数の回答者（Solver）の回答ログを確認し、そのまま出題してよいか判定してください。曖昧さ、事実正確性、
+攻撃的表現の有無、難易度の妥当性（既存問題との類似は今回は判定不要）を簡易的にチェックしてください。
+
+${questionsText}
 
 判定結果は必ず以下の厳密なJSON形式のみで返してください。説明文やMarkdownのコードフェンスは一切含めないでください:
-{"verdict": "approved" | "rejected" | "human_review", "notes": string}
+{"items": [{"index": number, "verdict": "approved" | "rejected" | "human_review", "notes": string}]}
+
+- itemsはちょうど${items.length}件、上記のindex番号と対応させてください。
 `;
 }
+
+// lib/features/quiz/quiz_controller.dartのProviderは`kind`が
+// 'onboarding' | 'daily' | 'lock_quiz' のいずれかであることを前提にフィルタしているため、
+// 生成した問題を実際にアプリのプールへ供給するには、ここでこのいずれかを割り当てる必要がある
+// （それ以外の値を入れるとinsert自体は成功してもアプリ側からは一切参照されなくなる）。
+// デイリーミッションのプール補充を主目的とするため、既定は'daily'とする。
+const KIND = 'daily';
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
@@ -243,17 +257,15 @@ Deno.serve(async (req: Request) => {
   }
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  const questionType = pickRandom(QUESTION_TYPES);
-  const difficulty = randomDifficulty();
   const locale = 'ja';
 
-  // 1) runレコードをinsert
+  // 1) runレコードをinsert（バッチ全体で1レコード）
   const { data: run, error: runInsertError } = await supabase
     .from('quiz_generation_runs')
     .insert({
-      question_type: questionType,
+      question_type: 'mixed',
       locale,
-      target_difficulty: difficulty,
+      target_difficulty: 0,
       generator_model: GEMINI_MODEL,
       solver_models: [GEMINI_MODEL, GEMINI_MODEL, GEMINI_MODEL],
       validator_model: GEMINI_MODEL,
@@ -278,183 +290,152 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // 2) Generator
-  const generatorRaw = await callGemini(buildGeneratorPrompt(questionType, difficulty, locale));
-  if (generatorRaw === null) {
-    console.error('generate_quiz_batch: generator call failed', runId);
-    await markRunFailed();
+  function fail(stage: string, extra: Record<string, unknown> = {}) {
     return new Response(
-      JSON.stringify({ generated: false, approved: false, run_id: runId, debug_error: lastGeminiError }),
+      JSON.stringify({ generated: false, approved_count: 0, run_id: runId, stage, ...extra }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
   }
 
-  let generatorResult: GeneratorResult;
+  // 2) Generator（QUESTIONS_PER_BATCH問まとめて生成）
+  const generatorRaw = await callGemini(buildGeneratorPrompt(QUESTIONS_PER_BATCH, locale));
+  if (generatorRaw === null) {
+    console.error('generate_quiz_batch: generator call failed', runId);
+    await markRunFailed();
+    return fail('generator_call', { debug_error: lastGeminiError });
+  }
+
+  let items: GeneratorItem[];
   try {
     const parsed = JSON.parse(cleanJson(generatorRaw));
-    if (
-      !parsed?.payload?.question ||
-      !Array.isArray(parsed?.payload?.choices) ||
-      typeof parsed?.correct_answer !== 'string' ||
-      typeof parsed?.time_limit_seconds !== 'number' ||
-      typeof parsed?.explanation !== 'string'
-    ) {
-      throw new Error('missing required fields');
+    if (!Array.isArray(parsed?.items) || parsed.items.length === 0) {
+      throw new Error('missing or empty items array');
     }
-    generatorResult = parsed as GeneratorResult;
+    items = (parsed.items as unknown[]).filter((raw): raw is GeneratorItem => {
+      const item = raw as Partial<GeneratorItem>;
+      return (
+        !!item &&
+        typeof item.payload?.question === 'string' &&
+        Array.isArray(item.payload?.choices) &&
+        typeof item.correct_answer === 'string' &&
+        typeof item.time_limit_seconds === 'number' &&
+        typeof item.explanation === 'string'
+      );
+    });
+    if (items.length === 0) throw new Error('no valid items after filtering');
   } catch (error) {
     console.error('generate_quiz_batch: failed to parse generator response', error, generatorRaw);
     await markRunFailed();
-    return new Response(
-      JSON.stringify({
-        generated: false,
-        approved: false,
-        run_id: runId,
-        debug_error: `parse failed: ${String(error)}`,
-        debug_raw: generatorRaw.slice(0, 500),
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
+    return fail('generator_parse', { debug_error: String(error), debug_raw: generatorRaw.slice(0, 800) });
   }
 
   await sleep(INTER_CALL_DELAY_MS);
 
-  // 3) Solver x3（独立に、正解は渡さず解かせる）
-  const solverAnswers: string[] = [];
-  for (let i = 0; i < SOLVER_COUNT; i++) {
-    const solverRaw = await callGemini(
-      buildSolverPrompt(generatorResult.payload.question, generatorResult.payload.choices),
-    );
+  // 3) Solver x3（同じitems全体を、独立に3回解かせる。正解は渡さない）
+  const solverRounds: SolverAnswer[][] = [];
+  for (let round = 0; round < SOLVER_COUNT; round++) {
+    const solverRaw = await callGemini(buildSolverPrompt(items));
     if (solverRaw === null) {
-      console.error('generate_quiz_batch: solver call failed', runId, i);
+      console.error('generate_quiz_batch: solver call failed', runId, round);
       await markRunFailed();
-      return new Response(
-        JSON.stringify({ generated: true, approved: false, run_id: runId, stage: `solver_${i}_call`, debug_error: lastGeminiError }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      );
+      return fail(`solver_${round}_call`, { debug_error: lastGeminiError });
     }
     try {
-      const parsed = JSON.parse(cleanJson(solverRaw)) as SolverResult;
-      if (typeof parsed?.answer !== 'string') throw new Error('missing answer field');
-      solverAnswers.push(parsed.answer);
+      const parsed = JSON.parse(cleanJson(solverRaw));
+      if (!Array.isArray(parsed?.answers)) throw new Error('missing answers array');
+      const answers: SolverAnswer[] = parsed.answers.filter(
+        (a: unknown): a is SolverAnswer =>
+          !!a && typeof (a as SolverAnswer).index === 'number' && typeof (a as SolverAnswer).answer === 'string',
+      );
+      solverRounds.push(answers);
     } catch (error) {
       console.error('generate_quiz_batch: failed to parse solver response', error, solverRaw);
       await markRunFailed();
-      return new Response(
-        JSON.stringify({
-          generated: true,
-          approved: false,
-          run_id: runId,
-          stage: `solver_${i}_parse`,
-          debug_error: String(error),
-          debug_raw: solverRaw.slice(0, 500),
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      );
+      return fail(`solver_${round}_parse`, { debug_error: String(error), debug_raw: solverRaw.slice(0, 800) });
     }
-    if (i < SOLVER_COUNT - 1) {
+    if (round < SOLVER_COUNT - 1) {
       await sleep(INTER_CALL_DELAY_MS);
     }
   }
 
-  // 4) solver_agreement_rate算出
-  const agreementCount = solverAnswers.filter((a) => a === generatorResult.correct_answer).length;
-  const solverAgreementRate = agreementCount / SOLVER_COUNT;
-
   await sleep(INTER_CALL_DELAY_MS);
 
-  // 5) Validator
-  const validatorRaw = await callGemini(
-    buildValidatorPrompt(
-      generatorResult.payload.question,
-      generatorResult.payload.choices,
-      generatorResult.correct_answer,
-      solverAnswers,
-    ),
-  );
+  // 4) Validator（items全体をまとめて採否判定）
+  const validatorRaw = await callGemini(buildValidatorPrompt(items, solverRounds));
   if (validatorRaw === null) {
     console.error('generate_quiz_batch: validator call failed', runId);
     await markRunFailed();
-    return new Response(
-      JSON.stringify({ generated: true, approved: false, run_id: runId, stage: 'validator_call', debug_error: lastGeminiError }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
+    return fail('validator_call', { debug_error: lastGeminiError });
   }
 
-  let validatorResult: ValidatorResult;
+  let validatorItems: ValidatorItem[];
   try {
     const parsed = JSON.parse(cleanJson(validatorRaw));
-    const verdict = parsed?.verdict;
-    if (verdict !== 'approved' && verdict !== 'rejected' && verdict !== 'human_review') {
-      throw new Error('invalid verdict value');
-    }
-    validatorResult = { verdict, notes: typeof parsed?.notes === 'string' ? parsed.notes : '' };
+    if (!Array.isArray(parsed?.items)) throw new Error('missing items array');
+    validatorItems = parsed.items.filter((v: unknown): v is ValidatorItem => {
+      const item = v as Partial<ValidatorItem>;
+      return (
+        !!item &&
+        typeof item.index === 'number' &&
+        (item.verdict === 'approved' || item.verdict === 'rejected' || item.verdict === 'human_review')
+      );
+    });
   } catch (error) {
     console.error('generate_quiz_batch: failed to parse validator response', error, validatorRaw);
     await markRunFailed();
-    return new Response(
-      JSON.stringify({
-        generated: true,
-        approved: false,
-        run_id: runId,
-        stage: 'validator_parse',
-        debug_error: String(error),
-        debug_raw: validatorRaw.slice(0, 500),
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
+    return fail('validator_parse', { debug_error: String(error), debug_raw: validatorRaw.slice(0, 800) });
   }
 
-  // 6) 採否ロジック（コード側で判定する）
-  const approved = solverAgreementRate >= SOLVER_AGREEMENT_THRESHOLD && validatorResult.verdict === 'approved';
-  const validationStatus = approved ? 'approved' : validatorResult.verdict;
+  // 5) 問題ごとに採否判定（コード側で判定する。AIに丸投げしない）＋insert
+  let approvedCount = 0;
+  let insertedCount = 0;
+  const insertErrors: string[] = [];
 
-  // lib/features/quiz/quiz_controller.dartのProviderは`kind`が
-  // 'onboarding' | 'daily' | 'lock_quiz' のいずれかであることを前提にフィルタしているため、
-  // 生成した問題を実際にアプリのプールへ供給するには、ここでこのいずれかを割り当てる必要がある
-  // （それ以外の値を入れるとinsert自体は成功してもアプリ側からは一切参照されなくなる）。
-  // デイリーミッションのプール補充を主目的とするため、既定は'daily'とする。
-  const KIND = 'daily';
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    const answersForIndex = solverRounds.map((round) => round.find((a) => a.index === index)?.answer ?? null);
+    const agreementCount = answersForIndex.filter((a) => a === item.correct_answer).length;
+    const solverAgreementRate = agreementCount / SOLVER_COUNT;
 
-  const { error: insertQuestionError } = await supabase.from('quiz_questions').insert({
-    kind: KIND,
-    question_type: questionType,
-    locale,
-    payload: generatorResult.payload,
-    correct_answer: generatorResult.correct_answer,
-    difficulty: Math.round(difficulty),
-    time_limit_seconds: Math.round(generatorResult.time_limit_seconds),
-    is_active: approved,
-    generated_by: 'gemini',
-    generation_run_id: runId,
-    validation_status: validationStatus,
-    solver_agreement_rate: solverAgreementRate,
-    validator_notes: validatorResult.notes,
-  });
+    const validatorItem = validatorItems.find((v) => v.index === index);
+    const verdict = validatorItem?.verdict ?? 'human_review';
+    const notes = validatorItem?.notes ?? '(validatorから対応する結果が得られませんでした)';
 
-  if (insertQuestionError) {
-    console.error('generate_quiz_batch: failed to insert quiz_questions row', insertQuestionError);
-    await markRunFailed();
-    return new Response(
-      JSON.stringify({
-        generated: true,
-        approved: false,
-        run_id: runId,
-        insert_error: insertQuestionError.message,
-        insert_error_details: insertQuestionError.details,
-        insert_error_hint: insertQuestionError.hint,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
+    const approved = solverAgreementRate >= SOLVER_AGREEMENT_THRESHOLD && verdict === 'approved';
+    const validationStatus = approved ? 'approved' : verdict;
+    if (approved) approvedCount++;
+
+    const { error: insertQuestionError } = await supabase.from('quiz_questions').insert({
+      kind: KIND,
+      question_type: QUESTION_TYPES.includes(item.question_type) ? item.question_type : 'logic',
+      locale,
+      payload: item.payload,
+      correct_answer: item.correct_answer,
+      difficulty: Math.min(5, Math.max(1, Math.round(item.difficulty) || 1)),
+      time_limit_seconds: Math.round(item.time_limit_seconds),
+      is_active: approved,
+      generated_by: 'gemini',
+      generation_run_id: runId,
+      validation_status: validationStatus,
+      solver_agreement_rate: solverAgreementRate,
+      validator_notes: notes,
+    });
+
+    if (insertQuestionError) {
+      console.error('generate_quiz_batch: failed to insert quiz_questions row', index, insertQuestionError);
+      insertErrors.push(`[${index}] ${insertQuestionError.message}`);
+    } else {
+      insertedCount++;
+    }
   }
 
-  // 7) runレコードを更新
+  // 6) runレコードを更新
   const { error: runUpdateError } = await supabase
     .from('quiz_generation_runs')
     .update({
-      candidates_generated: 1,
-      candidates_approved: approved ? 1 : 0,
-      status: 'completed',
+      candidates_generated: insertedCount,
+      candidates_approved: approvedCount,
+      status: insertedCount > 0 ? 'completed' : 'failed',
       completed_at: new Date().toISOString(),
     })
     .eq('id', runId);
@@ -466,11 +447,10 @@ Deno.serve(async (req: Request) => {
   return new Response(
     JSON.stringify({
       generated: true,
-      approved,
       run_id: runId,
-      solver_agreement_rate: solverAgreementRate,
-      validator_verdict: validatorResult.verdict,
-      validator_notes: validatorResult.notes,
+      candidates_generated: insertedCount,
+      candidates_approved: approvedCount,
+      insert_errors: insertErrors.length > 0 ? insertErrors : undefined,
     }),
     { status: 200, headers: { 'Content-Type': 'application/json' } },
   );
