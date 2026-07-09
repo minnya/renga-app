@@ -467,6 +467,8 @@ Twitter的に動画を手軽に共有できることを実現するため、動�
 
 - 再生: Flutterの `video_player`（+ 必要に応じ `chewie` でUIラップ）でHLS URL `https://stream.mux.com/{playback_id}.m3u8` を直接再生する（Mux専用SDKへの依存を避け、標準的なHLS再生で完結させる）。
 - サムネイル: `https://image.mux.com/{playback_id}/thumbnail.jpg` をフィードのプレビュー画像として使用。
+- **プリロード**: フィード一覧の`ListView`は`cacheExtent`を画面サイズの2倍に設定し、実際に画面内に表示される前（スクロールで画面2枚分手前の位置に入った時点）で写真・動画のロードを開始する。動画の自動再生・一時停止は引き続き`VisibilityDetector`による実際の可視判定（可視率60%超）でのみ制御し、プリロードのタイミングとは分離する。
+- **キャッシュ**: 画像は`cached_network_image`によりディスクキャッシュされ、一度表示した画像は再ダウンロードしない。動画は`VideoPlayerController`をplaybackId単位でLRUキャッシュ（直近6件）し、画面外に出てもすぐには破棄せず、再スクロールで戻った際に再初期化なしで再生を継続する。
 
 ### 5.3 YouTube埋め込み・共有連携
 

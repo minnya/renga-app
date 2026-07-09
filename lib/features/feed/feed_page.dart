@@ -127,6 +127,10 @@ class FeedPage extends ConsumerWidget {
                   const blockSize = _kNativeAdInterval + 1;
 
                   return ListView.separated(
+                    // 画面外の写真・動画は画面サイズの2倍のスクロール領域に入って
+                    // 初めてプリロードされるようにする（onstage/offstageのビルドを前倒しし、
+                    // CachedNetworkImage/VideoPlayerControllerの初期化がこのタイミングで走る）。
+                    cacheExtent: MediaQuery.of(context).size.height * 2,
                     itemCount: itemCount,
                     separatorBuilder: (context, index) =>
                         const Divider(height: 1),

@@ -2,6 +2,35 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+/// 直近に読み込んだ動画のVideoPlayerControllerをplaybackId単位でLRUキャッシュする。
+/// フィードのスクロールで画面外に出た動画をすぐには破棄せず、再スクロールで戻ってきた際に
+/// 再ダウンロード・再初期化なしで再生を継続できるようにする。
+class _VideoControllerCache {
+  _VideoControllerCache._();
+
+  static const _maxSize = 6;
+  static final Map<String, VideoPlayerController> _pool = {};
+  static final List<String> _order = [];
+
+  static VideoPlayerController? take(String playbackId) {
+    final controller = _pool.remove(playbackId);
+    if (controller == null) return null;
+    _order.remove(playbackId);
+    return controller;
+  }
+
+  static void put(String playbackId, VideoPlayerController controller) {
+    _pool[playbackId] = controller;
+    _order
+      ..remove(playbackId)
+      ..add(playbackId);
+    while (_order.length > _maxSize) {
+      final evictedKey = _order.removeAt(0);
+      _pool.remove(evictedKey)?.dispose();
+    }
+  }
+}
+
 /// design/system.md 5.2節「再生・サムネイル」。
 ///
 /// Mux専用SDKへの依存を避け、標準的なHLS再生（`video_player`）で
@@ -39,27 +68,35 @@ class _MuxVideoPlayerWidgetState extends State<MuxVideoPlayerWidget> {
   @override
   void initState() {
     super.initState();
-    _controller = _createController();
+    _controller = _obtainController(widget.playbackId);
     _initializeFuture = _initialize(_controller);
   }
 
-  VideoPlayerController _createController() {
-    return VideoPlayerController.networkUrl(
-      Uri.parse('https://stream.mux.com/${widget.playbackId}.m3u8'),
-    );
+  /// 直近に読み込んだ動画は [_VideoControllerCache] から再利用し、
+  /// 再スクロールでの再ダウンロード・再初期化を避ける。
+  VideoPlayerController _obtainController(String playbackId) {
+    return _VideoControllerCache.take(playbackId) ??
+        VideoPlayerController.networkUrl(
+          Uri.parse('https://stream.mux.com/$playbackId.m3u8'),
+        );
   }
 
   Future<void> _initialize(VideoPlayerController controller) async {
-    await controller.initialize();
+    if (!controller.value.isInitialized) {
+      await controller.initialize();
+    }
     if (!mounted || controller != _controller) return;
     if (widget.isPreview) {
       await controller.setLooping(true);
       await controller.setVolume(0);
     } else {
+      await controller.setLooping(false);
       await controller.setVolume(1);
     }
     if (widget.autoPlay) {
       await controller.play();
+    } else {
+      await controller.pause();
     }
   }
 
@@ -68,12 +105,12 @@ class _MuxVideoPlayerWidgetState extends State<MuxVideoPlayerWidget> {
     super.didUpdateWidget(oldWidget);
     if (widget.playbackId != oldWidget.playbackId) {
       final oldController = _controller;
-      final newController = _createController();
+      final newController = _obtainController(widget.playbackId);
       setState(() {
         _controller = newController;
         _initializeFuture = _initialize(newController);
       });
-      oldController.dispose();
+      _VideoControllerCache.put(oldWidget.playbackId, oldController);
       return;
     }
     if (widget.autoPlay != oldWidget.autoPlay) {
@@ -87,7 +124,9 @@ class _MuxVideoPlayerWidgetState extends State<MuxVideoPlayerWidget> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller.pause();
+    // 画面外に出てもコントローラーは破棄せずキャッシュへ戻す（キャッシュ上限超過分のみ破棄）。
+    _VideoControllerCache.put(widget.playbackId, _controller);
     super.dispose();
   }
 
