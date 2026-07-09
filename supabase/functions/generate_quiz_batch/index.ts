@@ -395,14 +395,21 @@ Deno.serve(async (req: Request) => {
   const approved = solverAgreementRate >= SOLVER_AGREEMENT_THRESHOLD && validatorResult.verdict === 'approved';
   const validationStatus = approved ? 'approved' : validatorResult.verdict;
 
+  // lib/features/quiz/quiz_controller.dartのProviderは`kind`が
+  // 'onboarding' | 'daily' | 'lock_quiz' のいずれかであることを前提にフィルタしているため、
+  // 生成した問題を実際にアプリのプールへ供給するには、ここでこのいずれかを割り当てる必要がある
+  // （それ以外の値を入れるとinsert自体は成功してもアプリ側からは一切参照されなくなる）。
+  // デイリーミッションのプール補充を主目的とするため、既定は'daily'とする。
+  const KIND = 'daily';
+
   const { error: insertQuestionError } = await supabase.from('quiz_questions').insert({
-    kind: 'ai_generated',
+    kind: KIND,
     question_type: questionType,
     locale,
     payload: generatorResult.payload,
     correct_answer: generatorResult.correct_answer,
-    difficulty,
-    time_limit_seconds: generatorResult.time_limit_seconds,
+    difficulty: Math.round(difficulty),
+    time_limit_seconds: Math.round(generatorResult.time_limit_seconds),
     is_active: approved,
     generated_by: 'gemini',
     generation_run_id: runId,
@@ -415,7 +422,14 @@ Deno.serve(async (req: Request) => {
     console.error('generate_quiz_batch: failed to insert quiz_questions row', insertQuestionError);
     await markRunFailed();
     return new Response(
-      JSON.stringify({ generated: true, approved: false, run_id: runId }),
+      JSON.stringify({
+        generated: true,
+        approved: false,
+        run_id: runId,
+        insert_error: insertQuestionError.message,
+        insert_error_details: insertQuestionError.details,
+        insert_error_hint: insertQuestionError.hint,
+      }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
   }
@@ -436,7 +450,14 @@ Deno.serve(async (req: Request) => {
   }
 
   return new Response(
-    JSON.stringify({ generated: true, approved, run_id: runId }),
+    JSON.stringify({
+      generated: true,
+      approved,
+      run_id: runId,
+      solver_agreement_rate: solverAgreementRate,
+      validator_verdict: validatorResult.verdict,
+      validator_notes: validatorResult.notes,
+    }),
     { status: 200, headers: { 'Content-Type': 'application/json' } },
   );
 });
