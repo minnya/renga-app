@@ -31,8 +31,8 @@ final conversationListProvider = FutureProvider<List<DmConversationSummary>>((re
       .from('dm_conversations')
       .select(
         'id, user_a_id, user_b_id, last_message_at, '
-        'user_a:profiles!dm_conversations_user_a_id_fkey(username, avatar_url), '
-        'user_b:profiles!dm_conversations_user_b_id_fkey(username, avatar_url)',
+        'user_a:profiles!dm_conversations_user_a_id_fkey(username, display_name, avatar_url), '
+        'user_b:profiles!dm_conversations_user_b_id_fkey(username, display_name, avatar_url)',
       )
       .or('user_a_id.eq.${user.id},user_b_id.eq.${user.id}')
       .order('last_message_at', ascending: false);
@@ -66,7 +66,9 @@ final conversationListProvider = FutureProvider<List<DmConversationSummary>>((re
       DmConversationSummary(
         id: id,
         otherUserId: otherUserId,
-        otherUsername: otherProfile?['username'] as String?,
+        otherUsername: (otherProfile?['display_name'] as String?)?.trim().isNotEmpty == true
+            ? otherProfile!['display_name'] as String
+            : otherProfile?['username'] as String?,
         otherAvatarUrl: otherProfile?['avatar_url'] as String?,
         lastMessageAt: DateTime.parse(row['last_message_at'] as String),
         lastMessagePreview: _previewFor(lastMessageRow),
