@@ -9,6 +9,7 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../shared/time_format.dart';
 import '../quiz/quiz_controller.dart';
 import '../discover/discover_controller.dart' show domainDisplayLabel;
 import 'comments_sheet.dart';
@@ -117,7 +118,7 @@ class FeedPage extends ConsumerWidget {
                         return const NativeAdTile();
                       }
                       final postIndex = index - (index ~/ blockSize);
-                      return _PostTile(post: posts[postIndex]);
+                      return PostTile(post: posts[postIndex]);
                     },
                   );
                 },
@@ -220,18 +221,18 @@ class _OnboardingQuizBanner extends ConsumerWidget {
 }
 
 /// アクションバーのボタン（いいね・コメント・リポスト・共有用）。
-/// Instagram/X風のシンプルなアイコンボタン。
+/// Instagram/X風、ラベルなしのアイコンのみ。件数は1以上の場合のみアイコン右側に表示する。
 class _ActionBarButton extends StatelessWidget {
   const _ActionBarButton({
     required this.icon,
-    required this.label,
     required this.onPressed,
+    this.count,
     this.color,
   });
 
   final IconData icon;
-  final String label;
   final VoidCallback onPressed;
+  final int? count;
   final Color? color;
 
   @override
@@ -239,15 +240,17 @@ class _ActionBarButton extends StatelessWidget {
     final effectiveColor = color ?? Theme.of(context).colorScheme.onSurfaceVariant;
     return GestureDetector(
       onTap: onPressed,
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 20, color: effectiveColor),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: effectiveColor),
-          ),
+          if (count != null && count! > 0) ...[
+            const SizedBox(width: 4),
+            Text(
+              '$count',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: effectiveColor),
+            ),
+          ],
         ],
       ),
     );
@@ -255,16 +258,28 @@ class _ActionBarButton extends StatelessWidget {
 }
 
 
-class _PostTile extends ConsumerStatefulWidget {
-  const _PostTile({required this.post});
+/// 投稿1件のカード表示。フィード一覧・投稿詳細画面（[PostDetailPage]）の両方から使う。
+///
+/// [showAbsoluteTime] が`true`の場合は絶対時刻（詳細画面向け）、`false`の場合は
+/// 相対時刻（一覧画面向け）で作成日時を表示する。[enableThreadNavigation] が`true`の場合、
+/// 本文タップで投稿詳細画面へ遷移する（一覧画面用。詳細画面自身では`false`にして無効化する）。
+class PostTile extends ConsumerStatefulWidget {
+  const PostTile({
+    super.key,
+    required this.post,
+    this.showAbsoluteTime = false,
+    this.enableThreadNavigation = true,
+  });
 
   final Post post;
+  final bool showAbsoluteTime;
+  final bool enableThreadNavigation;
 
   @override
-  ConsumerState<_PostTile> createState() => _PostTileState();
+  ConsumerState<PostTile> createState() => _PostTileState();
 }
 
-class _PostTileState extends ConsumerState<_PostTile> {
+class _PostTileState extends ConsumerState<PostTile> {
   YoutubePlayerController? _youtubeController;
 
   /// design/product.md 3.13節「動画の自動再生（スクロールイン）」。
@@ -390,15 +405,18 @@ class _PostTileState extends ConsumerState<_PostTile> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Theme.of(context).colorScheme.primary.withAlpha((0.3 * 255).toInt()),
-                child: Text(
-                  firstLetter,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
+              GestureDetector(
+                onTap: () => context.push('/profile/${post.authorId}'),
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Theme.of(context).colorScheme.primary.withAlpha((0.3 * 255).toInt()),
+                  child: Text(
+                    firstLetter,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -406,13 +424,16 @@ class _PostTileState extends ConsumerState<_PostTile> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      authorName,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    GestureDetector(
+                      onTap: () => context.push('/profile/${post.authorId}'),
+                      child: Text(
+                        authorName,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     // Metadata row: Badge + Staked TP (if applicable)
                     Wrap(
@@ -438,7 +459,9 @@ class _PostTileState extends ConsumerState<_PostTile> {
               ),
               const SizedBox(width: 12),
               Text(
-                _formatCreatedAt(post.createdAt),
+                widget.showAbsoluteTime
+                    ? absoluteTimeLabel(post.createdAt)
+                    : relativeTimeLabel(l10n, post.createdAt),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -446,14 +469,19 @@ class _PostTileState extends ConsumerState<_PostTile> {
             ],
           ),
           const SizedBox(height: 12),
-          // Post body text
-          if (post.body.isNotEmpty) ...[
-            Text(
-              post.body,
-              style: Theme.of(context).textTheme.bodyMedium,
+          // Post body text（一覧画面ではタップで投稿詳細画面へ。X/Instagram同様、
+          // 投稿本体が親スレッド表示への導線。詳細画面自身では無効化する）
+          if (post.body.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: GestureDetector(
+                onTap: widget.enableThreadNavigation ? () => context.push('/posts/${post.id}') : null,
+                child: Text(
+                  post.body,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-          ],
           // design/system.md 6.1節「ドメインラベリング」。AIが自動付与した産業分類タグ。
           if (post.domainLabels != null && post.domainLabels!.isNotEmpty) ...[
             Wrap(
@@ -518,30 +546,29 @@ class _PostTileState extends ConsumerState<_PostTile> {
                   ),
             const SizedBox(height: 12),
           ],
-          // Action bar: Like, Comment, Repost, Share
+          // Action bar: Like, Comment, Repost, Share（アイコンのみ。件数は1以上のみ表示）
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _ActionBarButton(
                 icon: isLiked ? Icons.favorite : Icons.favorite_border,
-                label: post.likeCount > 0 ? '${post.likeCount}' : l10n.feedActionLike,
+                count: post.likeCount,
                 color: isLiked ? Colors.red : null,
                 onPressed: () => _handleToggleLike(isLiked),
               ),
               _ActionBarButton(
                 icon: Icons.chat_bubble_outline,
-                label: post.commentCount > 0 ? '${post.commentCount}' : l10n.feedActionComment,
+                count: post.commentCount,
                 onPressed: _handleOpenComments,
               ),
               _ActionBarButton(
                 icon: Icons.repeat,
-                label: post.repostCount > 0 ? '${post.repostCount}' : l10n.feedActionRepost,
+                count: post.repostCount,
                 color: isReposted ? Colors.green : null,
                 onPressed: () => _handleToggleRepost(isReposted),
               ),
               _ActionBarButton(
                 icon: Icons.share_outlined,
-                label: l10n.feedActionShare,
                 onPressed: _handleShare,
               ),
             ],
@@ -549,14 +576,5 @@ class _PostTileState extends ConsumerState<_PostTile> {
         ],
       ),
     );
-  }
-
-  String _formatCreatedAt(DateTime dateTime) {
-    final local = dateTime.toLocal();
-    final month = local.month.toString().padLeft(2, '0');
-    final day = local.day.toString().padLeft(2, '0');
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '$month/$day $hour:$minute';
   }
 }

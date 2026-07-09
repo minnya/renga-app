@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
@@ -232,7 +233,10 @@ class _CommentsBottomSheetState extends ConsumerState<CommentsBottomSheet> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildAvatar(context, comment),
+          GestureDetector(
+            onTap: () => context.push('/profile/${comment.authorId}'),
+            child: _buildAvatar(context, comment),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -240,9 +244,12 @@ class _CommentsBottomSheetState extends ConsumerState<CommentsBottomSheet> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      comment.authorUsername ?? l10n.feedUnknownUser,
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    GestureDetector(
+                      onTap: () => context.push('/profile/${comment.authorId}'),
+                      child: Text(
+                        comment.authorUsername ?? l10n.feedUnknownUser,
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(

@@ -134,25 +134,28 @@ class _ConversationTile extends ConsumerWidget {
         return true;
       },
       child: ListTile(
-        leading: CircleAvatar(
-          radius: 24,
-          backgroundColor: theme.colorScheme.primaryContainer,
-          child: (avatarUrl == null || avatarUrl.isEmpty)
-              ? Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: TextStyle(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w700,
+        leading: GestureDetector(
+          onTap: () => context.push('/profile/${conversation.otherUserId}'),
+          child: CircleAvatar(
+            radius: 24,
+            backgroundColor: theme.colorScheme.primaryContainer,
+            child: (avatarUrl == null || avatarUrl.isEmpty)
+                ? Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  )
+                : ClipOval(
+                    child: Image.network(
+                      avatarUrl,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                    ),
                   ),
-                )
-              : ClipOval(
-                  child: Image.network(
-                    avatarUrl,
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+          ),
         ),
         title: Text(
           name,

@@ -149,6 +149,25 @@ final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
   return rows.map((row) => Post.fromMap(row)).toList();
 });
 
+/// design/product.md 3.12節「投稿詳細（スレッド表示）」。投稿1件を単独取得する
+/// （フィード一覧に無い場合、例えばDiscover経由でも詳細画面を開けるようにするため）。
+final postByIdProvider = FutureProvider.family<Post, String>((ref, postId) async {
+  final row = await supabase
+      .from('posts')
+      .select(
+        'id, body, created_at, author_id, media_type, media_urls, post_type, staked_tp, '
+        'domain_labels, '
+        'external_video_url, external_video_provider, external_video_id, '
+        'profiles(username, intellect_percentile), '
+        'videos(status, mux_playback_id, thumbnail_url), '
+        'likes(count), comments(count), reposts(count)',
+      )
+      .eq('id', postId)
+      .single();
+
+  return Post.fromMap(row);
+});
+
 /// [layerFilterProvider] の選択に応じて [feedPostsProvider] の結果を絞り込む。
 ///
 /// データ規模が小さいMVPのため、サーバー側クエリを複雑にせずクライアント側でフィルタする。

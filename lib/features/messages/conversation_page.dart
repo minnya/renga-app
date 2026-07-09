@@ -212,7 +212,12 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(otherUsername),
+        title: otherUserId != null
+            ? GestureDetector(
+                onTap: () => context.push('/profile/$otherUserId'),
+                child: Text(otherUsername),
+              )
+            : Text(otherUsername),
         actions: [
           if (otherUserId != null)
             PopupMenuButton<String>(

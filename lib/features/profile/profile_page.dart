@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../shared/info_bottom_sheet.dart';
 import '../feed/intellect_badge.dart';
 import '../messages/messages_controller.dart';
 import 'profile_controller.dart';
@@ -135,6 +136,7 @@ class _SignedInProfileView extends ConsumerWidget {
                 ),
                 const SizedBox(height: 20),
                 _buildStatsRow(
+                  context,
                   influenceScore,
                   influencePercentile,
                   intellectScore,
@@ -144,6 +146,7 @@ class _SignedInProfileView extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 _buildBadgeRow(
+                  context,
                   intellectPercentile,
                   tpBalance,
                   strikeCount,
@@ -294,6 +297,7 @@ class _SignedInProfileView extends ConsumerWidget {
   }
 
   Widget _buildStatsRow(
+    BuildContext context,
     dynamic influenceScore,
     dynamic influencePercentile,
     dynamic intellectScore,
@@ -310,6 +314,14 @@ class _SignedInProfileView extends ConsumerWidget {
           percentile: '$influencePercentile%',
           theme: theme,
           accentColor: RengaColors.influence,
+          onTap: () => showInfoBottomSheet(
+            context,
+            icon: Icons.trending_up,
+            color: RengaColors.influence,
+            title: l10n.profileScoreInfluence,
+            description: 'Influenceは投稿の拡散力・エンゲージメント（いいね・リポスト・コメント）から'
+                '算出される影響力スコアです。パーセンタイルは全ユーザー内での相対順位を表します。',
+          ),
         ),
         Container(
           width: 1,
@@ -322,6 +334,14 @@ class _SignedInProfileView extends ConsumerWidget {
           percentile: '$intellectPercentile%',
           theme: theme,
           accentColor: RengaColors.intellect,
+          onTap: () => showInfoBottomSheet(
+            context,
+            icon: Icons.psychology,
+            color: RengaColors.intellect,
+            title: l10n.profileScoreIntellect,
+            description: 'Intellectは投稿・クイズ正答などから算出される知的専門性スコアです。'
+                '上位パーセンタイルに応じてバッジが付与されます（design/product.md 3.3節）。',
+          ),
         ),
       ],
     );
@@ -339,32 +359,37 @@ class _SignedInProfileView extends ConsumerWidget {
     required String percentile,
     required ThemeData theme,
     required Color accentColor,
+    required VoidCallback onTap,
   }) {
     return Expanded(
-      child: Column(
-        children: [
-          Text(
-            score,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: accentColor,
-              fontWeight: FontWeight.w700,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: [
+            Text(
+              score,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: accentColor,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: theme.textTheme.bodySmall),
-          const SizedBox(height: 4),
-          Text(
-            percentile,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 4),
+            Text(label, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 4),
+            Text(
+              percentile,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildBadgeRow(
+    BuildContext context,
     num? intellectPercentile,
     dynamic tpBalance,
     int strikeCount,
@@ -377,12 +402,23 @@ class _SignedInProfileView extends ConsumerWidget {
 
     final tpBalanceNum = tpBalance is num ? tpBalance : 0;
     badges.add(
-      Chip(
-        label: Text('${tpBalanceNum.toStringAsFixed(0)} TP'),
-        labelStyle: theme.textTheme.bodySmall,
-        backgroundColor: RengaColors.accent.withValues(alpha: 0.1),
-        side: BorderSide(color: RengaColors.accent.withValues(alpha: 0.3)),
-        visualDensity: VisualDensity.compact,
+      GestureDetector(
+        onTap: () => showInfoBottomSheet(
+          context,
+          icon: Icons.toll,
+          color: RengaColors.accent,
+          title: 'TP（トークンポイント）',
+          description: 'TPはステーキング投稿などアプリ内の各種アクションで使用するポイントです。'
+              'クイズ通過や日々の活動で獲得でき、ステーキング・ツイートで賭けることができます'
+              '（design/product.md 3.4節）。',
+        ),
+        child: Chip(
+          label: Text('${tpBalanceNum.toStringAsFixed(0)} TP'),
+          labelStyle: theme.textTheme.bodySmall,
+          backgroundColor: RengaColors.accent.withValues(alpha: 0.1),
+          side: BorderSide(color: RengaColors.accent.withValues(alpha: 0.3)),
+          visualDensity: VisualDensity.compact,
+        ),
       ),
     );
 

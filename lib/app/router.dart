@@ -13,6 +13,7 @@ import '../features/debug/connection_check_page.dart';
 import '../features/discover/discover_page.dart';
 import '../features/feed/compose_page.dart';
 import '../features/feed/feed_page.dart';
+import '../features/feed/post_detail_page.dart';
 import '../features/messages/conversation_page.dart';
 import '../features/messages/messages_list_page.dart';
 import '../features/notifications/notifications_page.dart';
@@ -171,6 +172,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/signup',
         pageBuilder: (context, state) => _fadeSlidePage(context, state, const SignupPage()),
+      ),
+      // design/product.md 3.12節「投稿詳細（スレッド表示）」。投稿を親としてコメントを
+      // 下に並べるX/Instagram風の詳細画面。
+      GoRoute(
+        path: '/posts/:postId',
+        pageBuilder: (context, state) => _fadeSlidePage(
+          context,
+          state,
+          PostDetailPage(postId: state.pathParameters['postId']!),
+        ),
       ),
       GoRoute(
         path: '/compose',
