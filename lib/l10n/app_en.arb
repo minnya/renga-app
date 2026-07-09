@@ -247,8 +247,35 @@
   "profileSaveButton": "Save",
   "profileScoresTitle": "Scores",
   "profileScoreInfluence": "Influence",
-  "profileScoreIntellect": "Intellect",
+  "profileScoreIntellect": "Intellect (IQ)",
   "profilePercentileLabel": "Top {percentile}%",
+  "profileScoreVsAverage": "{diff} vs average",
+  "@profileScoreVsAverage": {
+    "placeholders": {
+      "diff": {
+        "type": "String"
+      }
+    }
+  },
+  "profileScoreDayOverDay": "{diff} vs yesterday",
+  "@profileScoreDayOverDay": {
+    "placeholders": {
+      "diff": {
+        "type": "String"
+      }
+    }
+  },
+  "profileScoreHistoryTitle": "{label} trend",
+  "@profileScoreHistoryTitle": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "profileScoreHistoryAverageLegend": "All-user average",
+  "profileScoreHistoryEmpty": "No history yet",
+  "profileScoreHistoryClose": "Close",
   "@profilePercentileLabel": {
     "placeholders": {
       "percentile": {

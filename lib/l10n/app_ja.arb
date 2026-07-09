@@ -98,8 +98,35 @@
   "profileSaveButton": "保存",
   "profileScoresTitle": "評価",
   "profileScoreInfluence": "Influence",
-  "profileScoreIntellect": "Intellect",
+  "profileScoreIntellect": "Intellect（IQ）",
   "profilePercentileLabel": "上位 {percentile}%",
+  "profileScoreVsAverage": "平均より{diff}",
+  "@profileScoreVsAverage": {
+    "placeholders": {
+      "diff": {
+        "type": "String"
+      }
+    }
+  },
+  "profileScoreDayOverDay": "前日比 {diff}",
+  "@profileScoreDayOverDay": {
+    "placeholders": {
+      "diff": {
+        "type": "String"
+      }
+    }
+  },
+  "profileScoreHistoryTitle": "{label}の推移",
+  "@profileScoreHistoryTitle": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "profileScoreHistoryAverageLegend": "全ユーザー平均",
+  "profileScoreHistoryEmpty": "まだ推移データがありません",
+  "profileScoreHistoryClose": "閉じる",
   "profileSignOutButton": "ログアウト",
   "profileTpBalanceLabel": "TP残高",
   "profileStrikeCountLabel": "ストライク",
