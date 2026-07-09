@@ -130,6 +130,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // design/product.md 4章「情報アーキテクチャ」: InstagramやX(Twitter)と同じ
       // ボトムナビゲーション＋タブ構造。Feed/Discover/Messages/Battle/Profileの5ブランチは
       // それぞれ独立したナビゲーションスタック・スクロール位置を保持する
+      // （[MainShell]のBottomNavigationBarItems表示順と、ここでのbranches配列の順序は
+      // 必ず一致させること。`goBranch(tappedIndex)`が配列インデックスをそのまま使うため、
+      // 表示順とbranches順がずれるとタップ時に別タブが開いてしまう）。
       // (`StatefulShellRoute.indexedStack`)。DM個別会話(`/messages/:conversationId`)は
       // ブランチ内から`push`されるフルスクリーン画面。Composeはタブに含めず、中央ボタンから
       // 常にフルスクリーンで`push`する（[MainShell]参照）。
@@ -156,24 +159,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/battles',
-                builder: (context, state) => const BattleListPage(),
-                routes: [
-                  GoRoute(
-                    path: ':battleId',
-                    pageBuilder: (context, state) => _fadeSlidePage(
-                      context,
-                      state,
-                      BattleDetailPage(battleId: state.pathParameters['battleId']!),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
                 path: '/messages',
                 builder: (context, state) => const MessagesListPage(),
                 routes: [
@@ -183,6 +168,24 @@ final routerProvider = Provider<GoRouter>((ref) {
                       context,
                       state,
                       ConversationPage(conversationId: state.pathParameters['conversationId']!),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/battles',
+                builder: (context, state) => const BattleListPage(),
+                routes: [
+                  GoRoute(
+                    path: ':battleId',
+                    pageBuilder: (context, state) => _fadeSlidePage(
+                      context,
+                      state,
+                      BattleDetailPage(battleId: state.pathParameters['battleId']!),
                     ),
                   ),
                 ],
