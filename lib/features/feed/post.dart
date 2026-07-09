@@ -97,6 +97,8 @@ class Post {
     this.videoThumbnailUrl,
     this.domainLabels,
     this.quotedPost,
+    this.context = 'feed',
+    this.truthVerdict,
   });
 
   final String id;
@@ -149,6 +151,14 @@ class Post {
   /// design/product.md 3.12節「引用リポスト」。引用元投稿の要約プレビュー。
   /// `posts.quoted_post_id`がnullの通常投稿では`null`。
   final QuotedPostPreview? quotedPost;
+
+  /// design/product.md 2.1節「画面別の権限モデル」。`posts.context`（feed | discover）。
+  /// 投稿がどの画面のCreate権限で作られたかを表す。
+  final String context;
+
+  /// design/product.md 3.4節「真偽投票」。真偽審判リクエストの確定結果
+  /// （null=未リクエスト/投票中/無効、true=真、false=偽）。
+  final bool? truthVerdict;
 
   /// design/product.md 4章「上位25%/5%知能バッジ」判定用。値が小さいほど上位を表す
   /// （例: 上位5% → `intellect_percentile <= 5`）。スコアリングパイプライン未実装のため
@@ -220,6 +230,8 @@ class Post {
       quotedPost: quotedPostMap == null
           ? null
           : QuotedPostPreview.fromMap(quotedPostMap),
+      context: map['context'] as String? ?? 'feed',
+      truthVerdict: map['truth_verdict'] as bool?,
     );
   }
 

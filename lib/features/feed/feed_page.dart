@@ -11,7 +11,8 @@ import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../shared/time_format.dart';
 import '../quiz/quiz_controller.dart';
-import '../discover/discover_controller.dart' show domainDisplayLabel;
+import '../discover/discover_controller.dart' show domainDisplayLabel, isTopIntellectTierProvider;
+import '../discover/discover_promote_dialog.dart';
 import 'comments_sheet.dart';
 import 'compose_sheet.dart';
 import 'feed_controller.dart';
@@ -695,6 +696,23 @@ class _PostTileState extends ConsumerState<PostTile> {
                     icon: Icons.share_outlined,
                     onPressed: _handleShare,
                   ),
+                  // design/product.md 3.5節「Feed → Discoverのキュレーション」。Create権限
+                  // （上位25%以上）保持者にのみ、Feedの投稿をDiscoverへ引き上げるメニューを表示する。
+                  if (post.context == 'feed' &&
+                      (ref.watch(isTopIntellectTierProvider).value ?? false))
+                    PopupMenuButton<void>(
+                      icon: Icon(
+                        Icons.more_horiz,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      itemBuilder: (menuContext) => [
+                        PopupMenuItem<void>(
+                          onTap: () => showPromoteToDiscoverDialog(context, ref, post.id),
+                          child: const Text('Discoverへ引き上げる'),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ],

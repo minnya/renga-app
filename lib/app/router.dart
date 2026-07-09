@@ -9,8 +9,6 @@ import '../features/auth/complete_profile_page.dart';
 import '../features/auth/login_page.dart';
 import '../features/auth/profile_completion_provider.dart';
 import '../features/auth/signup_page.dart';
-import '../features/battle/battle_detail_page.dart';
-import '../features/battle/battle_list_page.dart';
 import '../features/debug/connection_check_page.dart';
 import '../features/discover/discover_page.dart';
 import '../features/feed/compose_sheet.dart';
@@ -128,7 +126,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       // design/product.md 4章「情報アーキテクチャ」: InstagramやX(Twitter)と同じ
-      // ボトムナビゲーション＋タブ構造。Feed/Discover/Messages/Battle/Profileの5ブランチは
+      // ボトムナビゲーション＋タブ構造。Feed/Discover/Messages/Profileの4ブランチは
       // それぞれ独立したナビゲーションスタック・スクロール位置を保持する
       // （[MainShell]のBottomNavigationBarItems表示順と、ここでのbranches配列の順序は
       // 必ず一致させること。`goBranch(tappedIndex)`が配列インデックスをそのまま使うため、
@@ -168,24 +166,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                       context,
                       state,
                       ConversationPage(conversationId: state.pathParameters['conversationId']!),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/battles',
-                builder: (context, state) => const BattleListPage(),
-                routes: [
-                  GoRoute(
-                    path: ':battleId',
-                    pageBuilder: (context, state) => _fadeSlidePage(
-                      context,
-                      state,
-                      BattleDetailPage(battleId: state.pathParameters['battleId']!),
                     ),
                   ),
                 ],

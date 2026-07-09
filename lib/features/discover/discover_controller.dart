@@ -1,9 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../../core/auth_state.dart';
 import '../../core/supabase_client.dart';
+import '../feed/feed_controller.dart' show postSelectColumns;
+import '../feed/post.dart';
+import '../profile/profile_controller.dart';
 import 'domain_post.dart';
 import 'domain_score.dart';
+import 'truth_judgment.dart';
 
 /// design/product.md 3.5節「AI自動専門家発掘システム」のドメイン一覧。
 ///
@@ -101,4 +106,149 @@ final discoverFilteredPostsProvider = FutureProvider<List<DomainPost>>((ref) asy
   final rows = await query.order('created_at', ascending: false).limit(50);
 
   return rows.map((row) => DomainPost.fromMap(row)).toList();
+});
+
+/// design/product.md 2.1節「画面別の権限モデル」。ログイン中のユーザーがDiscoverの
+/// `Create`権限（上位25%以上、`is_top_intellect_tier`）を持つかどうか。
+/// 実際の許可判定は常にサーバー側（RLS + RPC内チェック）で行うため、これはUI表示の
+/// 出し分け専用（あいまいな場合は非表示側に倒す）。
+final isTopIntellectTierProvider = FutureProvider<bool>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return false;
+  try {
+    final profile = await ref.watch(profileProvider(user.id).future);
+    final percentile = profile['intellect_percentile'] as num?;
+    return percentile != null && percentile <= 25;
+  } catch (_) {
+    // 取得失敗時は権限UIを出さない側に倒す。
+    return false;
+  }
+});
+
+/// design/product.md 2.1節「Discover」画面のCreate投稿一覧
+/// （`posts.context = 'discover'`の投稿、作成日時降順・最大50件）。
+final discoverContextPostsProvider = FutureProvider<List<Post>>((ref) async {
+  final rows = await supabase
+      .from('posts')
+      .select(postSelectColumns)
+      .eq('context', 'discover')
+      .order('created_at', ascending: false)
+      .limit(50);
+  return rows.map((row) => Post.fromMap(row)).toList();
+});
+
+/// design/product.md 3.5節「Feed → Discoverのキュレーション」。`discover_promotions`経由で
+/// Discoverへ引き上げられたFeed投稿（元のpostは`context = 'feed'`のまま、
+/// キュレーションは加算的でリポストに近い）一覧。
+final discoverPromotedPostsProvider = FutureProvider<List<Post>>((ref) async {
+  final rows = await supabase
+      .from('discover_promotions')
+      .select('post_id, created_at, posts($postSelectColumns)')
+      .order('created_at', ascending: false)
+      .limit(50);
+
+  return rows
+      .map((row) => row['posts'])
+      .whereType<Map>()
+      .map((post) => Post.fromMap(Map<String, dynamic>.from(post)))
+      .toList();
+});
+
+/// [discoverContextPostsProvider]（Discover新規投稿）と[discoverPromotedPostsProvider]
+/// （Feedからの引き上げ）を作成日時降順にマージした、Discover画面に表示する投稿一覧。
+final discoverPostsProvider = FutureProvider<List<Post>>((ref) async {
+  final directPosts = await ref.watch(discoverContextPostsProvider.future);
+  final promotedPosts = await ref.watch(discoverPromotedPostsProvider.future);
+
+  final byId = <String, Post>{};
+  for (final post in [...directPosts, ...promotedPosts]) {
+    byId[post.id] = post;
+  }
+  final merged = byId.values.toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return merged;
+});
+
+/// design/product.md 3.4節「真偽投票」。指定投稿の真偽審判リクエスト（存在すれば1件、
+/// `unique(post_id)`）。リクエストが起票されていない投稿は`null`。
+final truthJudgmentRequestProvider =
+    FutureProvider.family<TruthJudgmentRequest?, String>((ref, postId) async {
+  final row = await supabase
+      .from('truth_judgment_requests')
+      .select()
+      .eq('post_id', postId)
+      .maybeSingle();
+  return row == null ? null : TruthJudgmentRequest.fromMap(row);
+});
+
+/// ログイン中のユーザーが指定の真偽審判リクエストに既に投票済みかどうか
+/// （`truth_votes`は`unique(request_id, user_id)`のため再投票不可。読み取り専用表示に使う）。
+final myTruthVoteProvider =
+    FutureProvider.family<TruthVote?, String>((ref, requestId) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return null;
+  final row = await supabase
+      .from('truth_votes')
+      .select()
+      .eq('request_id', requestId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+  return row == null ? null : TruthVote.fromMap(row);
+});
+
+/// Discover画面のCreate投稿・真偽審判リクエスト・Feed→Discover引き上げをまとめて扱う
+/// コントローラー。実際の権限・残高チェックはすべてRPC側（migration参照）で行われるため、
+/// ここではRPC呼び出しと関連Providerのinvalidateのみを担う。
+class DiscoverController {
+  DiscoverController(this.ref);
+
+  final Ref ref;
+
+  /// design/product.md 2.1節「Discoverの`Create`権限」。上位25%以上のユーザーのみ成功する
+  /// （それ以外は`create_discover_post` RPCが例外を投げる）。
+  Future<void> createDiscoverPost({required String body, required num stakedTp}) async {
+    await supabase.rpc(
+      'create_discover_post',
+      params: {'p_body': body.trim(), 'p_staked_tp': stakedTp},
+    );
+    ref.invalidate(discoverContextPostsProvider);
+    ref.invalidate(discoverPostsProvider);
+  }
+
+  /// design/product.md 3.5節「Feed → Discoverのキュレーション」。
+  Future<void> promotePostToDiscover({required String postId, required num tpCost}) async {
+    await supabase.rpc(
+      'promote_post_to_discover',
+      params: {'p_post_id': postId, 'p_tp_cost': tpCost},
+    );
+    ref.invalidate(discoverPromotedPostsProvider);
+    ref.invalidate(discoverPostsProvider);
+  }
+
+  /// design/product.md 3.4節「リクエスト」。対象投稿は`context = 'discover'`である必要がある
+  /// （それ以外は`request_truth_judgment` RPCが例外を投げる）。
+  Future<void> requestTruthJudgment({required String postId}) async {
+    await supabase.rpc('request_truth_judgment', params: {'p_post_id': postId});
+    ref.invalidate(truthJudgmentRequestProvider(postId));
+  }
+
+  /// design/product.md 3.4節「投票」。投票資格（上位25%かつ投稿者本人と同格以上・自己投票不可）は
+  /// `cast_truth_vote` RPC側で検証され、違反時は例外（`PostgrestException.message`が日本語）を返す。
+  Future<void> castTruthVote({
+    required String requestId,
+    required String postId,
+    required bool verdict,
+    required num stakedTp,
+  }) async {
+    await supabase.rpc(
+      'cast_truth_vote',
+      params: {'p_request_id': requestId, 'p_verdict': verdict, 'p_staked_tp': stakedTp},
+    );
+    ref.invalidate(truthJudgmentRequestProvider(postId));
+    ref.invalidate(myTruthVoteProvider(requestId));
+  }
+}
+
+final discoverControllerProvider = Provider<DiscoverController>((ref) {
+  return DiscoverController(ref);
 });

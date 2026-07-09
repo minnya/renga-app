@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 /// design/product.md 4章「情報アーキテクチャ」。InstagramやX(Twitter)と同じ
-/// 「ボトムナビゲーション＋タブ」構造。各タブ(Feed/Discover/Messages/Battle/Profile)は
+/// 「ボトムナビゲーション＋タブ」構造。各タブ(Feed/Discover/Messages/Profile)の4タブは
 /// `StatefulShellRoute.indexedStack`で独立したナビゲーションスタックとスクロール位置を保持する。
 /// Messages一覧もこのタブの一部としてスタック内に保持され、他タブと同じく即時切替される
 /// (個別DM会話画面はタブ内から`push`されるフルスクリーン画面のまま)。
@@ -24,7 +24,6 @@ class MainShell extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Feed'),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Discover'),
           BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Messages'),
-          BottomNavigationBarItem(icon: Icon(Icons.bolt_outlined), activeIcon: Icon(Icons.bolt), label: 'Battle'),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
         ],
       ),

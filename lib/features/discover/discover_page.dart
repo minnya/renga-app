@@ -4,9 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../l10n/gen/app_localizations.dart';
 import '../../shared/time_format.dart';
+import '../feed/feed_page.dart' show PostTile;
+import 'discover_compose_sheet.dart';
 import 'discover_controller.dart';
 import 'domain_post.dart';
 import 'domain_score.dart';
+import 'truth_judgment_section.dart';
 
 /// design/product.md 4章「Discover（専門家発掘・ドメイン別ランキング）」画面。
 ///
@@ -21,8 +24,18 @@ class DiscoverPage extends ConsumerWidget {
     final selectedDomain = ref.watch(selectedDomainProvider);
     final rankingAsync = ref.watch(domainRankingProvider(selectedDomain));
     final postsAsync = ref.watch(discoverFilteredPostsProvider);
+    final discoverPostsAsync = ref.watch(discoverPostsProvider);
+    final isTopTier = ref.watch(isTopIntellectTierProvider).value ?? false;
 
     return Scaffold(
+      // design/product.md 2.1節「Discoverの`Create`権限」。上位25%以上のユーザーにのみ
+      // Discoverへの新規投稿ボタンを表示する（実際の許可判定はRPC側で行う）。
+      floatingActionButton: isTopTier
+          ? FloatingActionButton(
+              onPressed: () => showDiscoverComposeSheet(context),
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: Column(
         children: [
           // ヘッダーセクション（大きめの見出し・余白。Instagram風）
@@ -90,6 +103,64 @@ class DiscoverPage extends ConsumerWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 children: [
+                  // design/product.md 2.1節・3.4節。Discoverの新規投稿（Create権限保持者による
+                  // 投稿・Feedからの引き上げ）とオプトイン型の真偽投票UI。
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    child: Text(
+                      'Discover投稿',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...discoverPostsAsync.when(
+                    data: (posts) {
+                      if (posts.isEmpty) {
+                        return [
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(child: Text('まだDiscover投稿はありません')),
+                          ),
+                        ];
+                      }
+                      return posts.map<Widget>((post) {
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                PostTile(post: post),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  child: TruthJudgmentSection(
+                                    postId: post.id,
+                                    postAuthorId: post.authorId,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList();
+                    },
+                    loading: () => [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    ],
+                    error: (error, stackTrace) => [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: Text('Discover投稿の取得に失敗しました: $error')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                     child: Text(

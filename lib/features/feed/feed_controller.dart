@@ -127,28 +127,37 @@ final layerFilterProvider = NotifierProvider<LayerFilterNotifier, LayerFilter>(
   LayerFilterNotifier.new,
 );
 
+/// `posts` テーブルへの共通ネストselect列。フィード・Discoverの両方（`discover_controller.dart`）
+/// から同一形状の [Post] を組み立てられるよう、投稿一覧取得クエリ間で共有する。
+///
+/// design/system.md 7章。`context`（feed|discover）・`truth_verdict`（真偽審判の確定結果）も
+/// 併せて取得し、Discover画面での真偽投票UI・Feed→Discover引き上げ判定に使う。
+const postSelectColumns =
+    'id, body, created_at, author_id, media_type, media_urls, post_type, staked_tp, '
+    'domain_labels, quoted_post_id, context, truth_verdict, '
+    'external_video_url, external_video_provider, external_video_id, '
+    'profiles(username, intellect_percentile), '
+    'videos(status, mux_playback_id, thumbnail_url), '
+    'likes(count), comments(count), reposts(count), '
+    // 自己参照FK（posts.quoted_post_id -> posts.id）の埋め込みは、`posts!quoted_post_id`
+    // という書き方だと方向が曖昧になりPostgRESTが逆方向（このポストを引用している側の投稿）を
+    // 解決してしまうことがあるため、FKカラム名を直接指定する公式推奨の書き方で明示的に
+    // 「このポストが指す先（引用元）」の単一行を埋め込む。
+    'quoted_post:quoted_post_id(id, body, media_type, media_urls, author_id, '
+    'created_at, profiles(username), videos(thumbnail_url))';
+
 /// design/system.md 1章の `posts` テーブルから投稿一覧（作成日時降順・最大50件）を取得する。
 ///
 /// 投稿者の `username` / `intellect_percentile` も併せて取得するため、Supabase Dartの
 /// ネストselectで `profiles(username, intellect_percentile)` を同時取得する。
 /// `posts` は誰でもselect可能なRLSのため、未ログインでも取得できる。
+/// design/product.md 2.1節「画面別の権限モデル」: FeedはFeedコンテキスト（`context = 'feed'`）の
+/// 投稿のみを表示する（Discover新規投稿・真偽投票用のDiscoverコンテキスト投稿はここには出さない）。
 final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
   final rows = await supabase
       .from('posts')
-      .select(
-        'id, body, created_at, author_id, media_type, media_urls, post_type, staked_tp, '
-        'domain_labels, quoted_post_id, '
-        'external_video_url, external_video_provider, external_video_id, '
-        'profiles(username, intellect_percentile), '
-        'videos(status, mux_playback_id, thumbnail_url), '
-        'likes(count), comments(count), reposts(count), '
-        // 自己参照FK（posts.quoted_post_id -> posts.id）の埋め込みは、`posts!quoted_post_id`
-        // という書き方だと方向が曖昧になりPostgRESTが逆方向（このポストを引用している側の投稿）を
-        // 解決してしまうことがあるため、FKカラム名を直接指定する公式推奨の書き方で明示的に
-        // 「このポストが指す先（引用元）」の単一行を埋め込む。
-        'quoted_post:quoted_post_id(id, body, media_type, media_urls, author_id, '
-        'created_at, profiles(username), videos(thumbnail_url))',
-      )
+      .select(postSelectColumns)
+      .eq('context', 'feed')
       .order('created_at', ascending: false)
       .limit(50);
 
@@ -160,20 +169,7 @@ final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
 final postByIdProvider = FutureProvider.family<Post, String>((ref, postId) async {
   final row = await supabase
       .from('posts')
-      .select(
-        'id, body, created_at, author_id, media_type, media_urls, post_type, staked_tp, '
-        'domain_labels, quoted_post_id, '
-        'external_video_url, external_video_provider, external_video_id, '
-        'profiles(username, intellect_percentile), '
-        'videos(status, mux_playback_id, thumbnail_url), '
-        'likes(count), comments(count), reposts(count), '
-        // 自己参照FK（posts.quoted_post_id -> posts.id）の埋め込みは、`posts!quoted_post_id`
-        // という書き方だと方向が曖昧になりPostgRESTが逆方向（このポストを引用している側の投稿）を
-        // 解決してしまうことがあるため、FKカラム名を直接指定する公式推奨の書き方で明示的に
-        // 「このポストが指す先（引用元）」の単一行を埋め込む。
-        'quoted_post:quoted_post_id(id, body, media_type, media_urls, author_id, '
-        'created_at, profiles(username), videos(thumbnail_url))',
-      )
+      .select(postSelectColumns)
       .eq('id', postId)
       .single();
 
