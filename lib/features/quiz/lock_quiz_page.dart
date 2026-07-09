@@ -15,6 +15,8 @@ import 'quiz_question.dart';
 /// - TP付与は行わない（通行料としての正誤判定のみ）
 /// - 全問正解した場合のみ投稿を許可する（1問でも不正解ならロック解除失敗）
 /// という点が異なるため、専用のフルスクリーンダイアログとして実装する。
+/// design/product.md 3.14節に従い、正誤フィードバックと「次へ」ボタンは別ページへ遷移せず、
+/// 設問画面の上に重ねるオーバーレイパネルとして表示する。
 ///
 /// 呼び出し側は `await showLockQuizDialog(context)` で結果（true=全問正解/false=未達・キャンセル）を受け取る。
 Future<bool> showLockQuizDialog(BuildContext context) async {
@@ -40,6 +42,11 @@ class _LockQuizPageState extends ConsumerState<LockQuizPage> {
   Stopwatch? _stopwatch;
   bool _answeredCurrent = false;
   bool _finished = false;
+
+  // design/product.md 3.14節「回答結果フィードバック」。
+  bool _showingFeedback = false;
+  String? _selectedChoice;
+  bool _lastAnswerCorrect = false;
 
   @override
   void dispose() {
@@ -95,13 +102,27 @@ class _LockQuizPageState extends ConsumerState<LockQuizPage> {
     if (!mounted) return;
     setState(() {
       if (isCorrect) _correctCount++;
+      _selectedChoice = selectedChoice;
+      _lastAnswerCorrect = isCorrect;
+      _showingFeedback = true;
     });
+  }
 
+  /// フィードバックオーバーレイの「次へ」ボタン押下時。
+  /// [QuizPage]と同様、フィードバック非表示と次状態への遷移を同一のsetStateで行い、
+  /// 集計中に設問画面へ一瞬戻って見えることによる「結果が表示されない」体験を避ける。
+  void _handleNext() {
     if (_currentIndex + 1 < _questions!.length) {
-      setState(() => _currentIndex++);
+      setState(() {
+        _showingFeedback = false;
+        _currentIndex++;
+      });
       _startQuestionTimer(_questions![_currentIndex]);
     } else {
-      setState(() => _finished = true);
+      setState(() {
+        _showingFeedback = false;
+        _finished = true;
+      });
     }
   }
 
@@ -143,34 +164,163 @@ class _LockQuizPageState extends ConsumerState<LockQuizPage> {
             }
 
             final question = _questions![_currentIndex];
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    l10n.lockQuizProgress(_currentIndex + 1, _questions!.length),
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(l10n.quizRemainingSeconds(_remainingSeconds), style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 24),
-                  Text(question.questionText, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 24),
-                  ...question.choices.map(
-                    (choice) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: OutlinedButton(
-                        onPressed: () => _handleAnswer(choice),
-                        child: Align(alignment: Alignment.centerLeft, child: Text(choice)),
+            final isLastQuestion = _currentIndex + 1 >= _questions!.length;
+
+            return Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        l10n.lockQuizProgress(_currentIndex + 1, _questions!.length),
+                        style: Theme.of(context).textTheme.labelLarge,
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        l10n.quizRemainingSeconds(_remainingSeconds),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 24),
+                      Text(question.questionText, style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 24),
+                      ...question.choices.map(
+                        (choice) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: OutlinedButton(
+                            onPressed: _showingFeedback ? null : () => _handleAnswer(choice),
+                            child: Align(alignment: Alignment.centerLeft, child: Text(choice)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                _QuizFeedbackOverlay(
+                  visible: _showingFeedback,
+                  isCorrect: _lastAnswerCorrect,
+                  selectedChoice: _selectedChoice,
+                  correctAnswer: question.correctAnswer,
+                  isLastQuestion: isLastQuestion,
+                  onNext: _handleNext,
+                ),
+              ],
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// design/product.md 3.14節「回答結果フィードバック」に対応する正誤フィードバック＋
+/// 「次へ」ボタンのオーバーレイ。[QuizPage]のものと同じ見た目・アニメーション方針
+/// （ボトムシート相当の角丸パネル＋背後の半透明スクリム、下からのスライド＋フェード）に揃える。
+class _QuizFeedbackOverlay extends StatelessWidget {
+  const _QuizFeedbackOverlay({
+    required this.visible,
+    required this.isCorrect,
+    required this.selectedChoice,
+    required this.correctAnswer,
+    required this.isLastQuestion,
+    required this.onNext,
+  });
+
+  final bool visible;
+  final bool isCorrect;
+  final String? selectedChoice;
+  final String correctAnswer;
+  final bool isLastQuestion;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return IgnorePointer(
+      ignoring: !visible,
+      child: Stack(
+        children: [
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 220),
+            opacity: visible ? 1 : 0,
+            child: Container(color: Colors.black.withValues(alpha: 0.45)),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: AnimatedSlide(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              offset: visible ? Offset.zero : const Offset(0, 1),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: visible ? 1 : 0,
+                child: SafeArea(
+                  top: false,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 16,
+                          offset: const Offset(0, -4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              isCorrect ? Icons.check_circle : Icons.cancel,
+                              color: isCorrect ? Colors.green : Colors.red,
+                              size: 32,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                isCorrect ? l10n.quizFeedbackCorrect : l10n.quizFeedbackIncorrect,
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      color: isCorrect ? Colors.green : Colors.red,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (!isCorrect) ...[
+                          const SizedBox(height: 12),
+                          if (selectedChoice != null)
+                            Text(
+                              selectedChoice!,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                            ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.quizFeedbackCorrectAnswer(correctAnswer),
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: onNext,
+                          child: Text(isLastQuestion ? l10n.quizSeeResultButton : l10n.quizNextButton),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

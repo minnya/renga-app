@@ -32,10 +32,14 @@ class _QuizPageState extends ConsumerState<QuizPage> {
   DailyCompletionResult? _dailyResult;
 
   // design/product.md 3.14節「回答結果フィードバック」。
-  // 選択直後は正誤フィードバック画面を表示し、明示的な「次へ」操作で次の設問に進む。
+  // 選択直後は設問画面の上にオーバーレイパネルで正誤フィードバックを表示し、
+  // 明示的な「次へ」操作で次の設問に進む（別ページには遷移しない）。
   bool _showingFeedback = false;
   String? _selectedChoice;
   bool _lastAnswerCorrect = false;
+  // 最後の設問で「結果を見る」を押してから結果サマリー表示に切り替わるまでの間、
+  // オーバーレイを表示し続けつつボタンをローディング状態にするためのフラグ。
+  bool _finishing = false;
 
   @override
   void dispose() {
@@ -97,15 +101,13 @@ class _QuizPageState extends ConsumerState<QuizPage> {
     });
   }
 
-  /// フィードバック画面の「次へ」/「結果を見る」ボタン押下時。
+  /// フィードバックオーバーレイの「次へ」/「結果を見る」ボタン押下時。
   ///
-  /// 修正: 従来は`_showingFeedback`を先にfalseへ倒してから最後の設問の場合のみ
-  /// `_handleFinish`をawaitしていたため、デイリーミッションのTP付与RPC等の完了を
-  /// 待つ間、`_finished`はまだfalseのまま再描画され、フィードバック画面ではなく
-  /// 直前の設問画面が一瞬（通信が遅い場合は数秒）再表示されてしまい、「結果を見る」
-  /// ボタンを押しても結果が出ないように見えるバグがあった。次の設問へ進む場合と
-  /// 結果サマリーへ進む場合のいずれも、フィードバック非表示と次状態への遷移を
-  /// 同一のsetStateにまとめることで、中間状態の描画を発生させないようにする。
+  /// 最後の設問の場合は`_handleFinish`の完了（デイリーミッションのTP付与RPC等）を
+  /// 待つ間もオーバーレイを表示し続ける。ここで先に`_showingFeedback`を倒してしまうと、
+  /// 集計処理待ちの間だけ設問画面へ一瞬戻ったように見え、「結果を見るを押しても
+  /// 何も起きない」ように見える不具合になるため、次の設問へ進む場合と結果サマリーへ
+  /// 進む場合のいずれも、フィードバック非表示と次状態への遷移を同一のsetStateで行う。
   Future<void> _handleNext() async {
     if (_currentIndex + 1 < _questions!.length) {
       setState(() {
@@ -114,6 +116,7 @@ class _QuizPageState extends ConsumerState<QuizPage> {
       });
       _startQuestionTimer(_questions![_currentIndex]);
     } else {
+      setState(() => _finishing = true);
       await _handleFinish();
     }
   }
@@ -127,6 +130,7 @@ class _QuizPageState extends ConsumerState<QuizPage> {
     if (!mounted) return;
     setState(() {
       _showingFeedback = false;
+      _finishing = false;
       _finished = true;
     });
   }
@@ -161,86 +165,172 @@ class _QuizPageState extends ConsumerState<QuizPage> {
           }
 
           final question = _questions![_currentIndex];
+          final isLastQuestion = _currentIndex + 1 >= _questions!.length;
 
-          if (_showingFeedback) {
-            final isLastQuestion = _currentIndex + 1 >= _questions!.length;
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    l10n.quizProgress(_currentIndex + 1, _questions!.length),
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 24),
-                  Icon(
-                    _lastAnswerCorrect ? Icons.check_circle : Icons.cancel,
-                    color: _lastAnswerCorrect ? Colors.green : Colors.red,
-                    size: 64,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _lastAnswerCorrect ? l10n.quizFeedbackCorrect : l10n.quizFeedbackIncorrect,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: _lastAnswerCorrect ? Colors.green : Colors.red,
-                        ),
-                  ),
-                  if (!_lastAnswerCorrect) ...[
-                    const SizedBox(height: 12),
-                    if (_selectedChoice != null)
-                      Text(
-                        _selectedChoice!,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              decoration: TextDecoration.lineThrough,
-                            ),
-                      ),
-                    const SizedBox(height: 4),
+          return Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Text(
-                      l10n.quizFeedbackCorrectAnswer(question.correctAnswer),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge,
+                      l10n.quizProgress(_currentIndex + 1, _questions!.length),
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.quizRemainingSeconds(_remainingSeconds),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 24),
+                    Text(question.questionText, style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 24),
+                    ...question.choices.map(
+                      (choice) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: OutlinedButton(
+                          onPressed: _showingFeedback ? null : () => _handleAnswer(choice),
+                          child: Align(alignment: Alignment.centerLeft, child: Text(choice)),
+                        ),
+                      ),
                     ),
                   ],
-                  const SizedBox(height: 32),
-                  ElevatedButton(
-                    onPressed: _handleNext,
-                    child: Text(isLastQuestion ? l10n.quizSeeResultButton : l10n.quizNextButton),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  l10n.quizProgress(_currentIndex + 1, _questions!.length),
-                  style: Theme.of(context).textTheme.labelLarge,
                 ),
-                const SizedBox(height: 8),
-                Text(l10n.quizRemainingSeconds(_remainingSeconds), style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: 24),
-                Text(question.questionText, style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 24),
-                ...question.choices.map(
-                  (choice) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: OutlinedButton(
-                      onPressed: () => _handleAnswer(choice),
-                      child: Align(alignment: Alignment.centerLeft, child: Text(choice)),
+              ),
+              _QuizFeedbackOverlay(
+                visible: _showingFeedback,
+                isCorrect: _lastAnswerCorrect,
+                selectedChoice: _selectedChoice,
+                correctAnswer: question.correctAnswer,
+                isLastQuestion: isLastQuestion,
+                finishing: _finishing,
+                onNext: _handleNext,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// design/product.md 3.14節「回答結果フィードバック」に対応する正誤フィードバック＋
+/// 「次へ」ボタンのオーバーレイ。設問画面を別ページへ遷移させず、背後の設問の上に
+/// ボトムシート相当の角丸パネルを重ね、5章の方針（フェード＋わずかなスライド）に沿って
+/// 下から立ち上がる形で出現・消失させる。
+class _QuizFeedbackOverlay extends StatelessWidget {
+  const _QuizFeedbackOverlay({
+    required this.visible,
+    required this.isCorrect,
+    required this.selectedChoice,
+    required this.correctAnswer,
+    required this.isLastQuestion,
+    required this.finishing,
+    required this.onNext,
+  });
+
+  final bool visible;
+  final bool isCorrect;
+  final String? selectedChoice;
+  final String correctAnswer;
+  final bool isLastQuestion;
+  final bool finishing;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return IgnorePointer(
+      ignoring: !visible,
+      child: Stack(
+        children: [
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 220),
+            opacity: visible ? 1 : 0,
+            child: Container(color: Colors.black.withValues(alpha: 0.45)),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: AnimatedSlide(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              offset: visible ? Offset.zero : const Offset(0, 1),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: visible ? 1 : 0,
+                child: SafeArea(
+                  top: false,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 16,
+                          offset: const Offset(0, -4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              isCorrect ? Icons.check_circle : Icons.cancel,
+                              color: isCorrect ? Colors.green : Colors.red,
+                              size: 32,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                isCorrect ? l10n.quizFeedbackCorrect : l10n.quizFeedbackIncorrect,
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      color: isCorrect ? Colors.green : Colors.red,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (!isCorrect) ...[
+                          const SizedBox(height: 12),
+                          if (selectedChoice != null)
+                            Text(
+                              selectedChoice!,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                            ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.quizFeedbackCorrectAnswer(correctAnswer),
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: finishing ? null : onNext,
+                          child: finishing
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Text(isLastQuestion ? l10n.quizSeeResultButton : l10n.quizNextButton),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
