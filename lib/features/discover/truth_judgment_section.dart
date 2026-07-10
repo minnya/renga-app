@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,8 +20,9 @@ import 'truth_judgment.dart';
 ///   満たすユーザーにのみ「本当」「嘘」への投票ボタン（チケット1枚消費）を表示する。起票者本人は
 ///   投稿者本人以上の知能階層チェックを免除され、常に自分が起票した投票に参加できる。
 /// - **ブラインド投票フェーズ（3.4.2節）**: 自分がまだ投票していない間は、投票比率を一切見せず
-///   「現在N人投票中」という総数のみ表示する（モザイク）。自分の投票が成立した瞬間、または
-///   `resolved`/`invalid`確定後に、2階建てインテリジェンス・メーター（3.4.4節）としてアンロックする。
+///   「審議投票中」というステータス・締切までの残り時間・総票数のみ表示する（モザイク）。
+///   自分の投票が成立した瞬間、または`resolved`/`invalid`確定後に、真/偽の内訳を1本のバーに
+///   色分けして表示するインテリジェンス・メーター（3.4.4節）としてアンロックする。
 class TruthJudgmentSection extends ConsumerWidget {
   const TruthJudgmentSection({super.key, required this.postId, required this.postAuthorId});
 
@@ -190,7 +193,7 @@ class _RequestBodyState extends ConsumerState<_RequestBody> {
         if (isUnlocked)
           _IntelligenceMeter(requestId: request.id)
         else
-          _BlindMeter(requestId: request.id),
+          _BlindMeter(requestId: request.id, closesAt: request.closesAt),
         if (request.isVoting) ...[
           const SizedBox(height: 4),
           if (myVote != null)
@@ -211,16 +214,48 @@ class _RequestBodyState extends ConsumerState<_RequestBody> {
 }
 
 /// design/product.md 3.4.2節「ブラインド投票フェーズ」。投票比率は一切見せず、
-/// 総票数（総消費チケット数）のみを表示する。
-class _BlindMeter extends ConsumerWidget {
-  const _BlindMeter({required this.requestId});
+/// 「審議投票中」というステータスと、締切までの残り時間、総票数のみを表示する。
+class _BlindMeter extends ConsumerStatefulWidget {
+  const _BlindMeter({required this.requestId, required this.closesAt});
 
   final String requestId;
+  final DateTime closesAt;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final votesAsync = ref.watch(allTruthVotesProvider(requestId));
+  ConsumerState<_BlindMeter> createState() => _BlindMeterState();
+}
+
+class _BlindMeterState extends ConsumerState<_BlindMeter> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // 締切までの残り時間表示を更新するため、30秒おきに再描画する。
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _formatRemaining(Duration d) {
+    if (d.isNegative) return 'まもなく締切';
+    final hours = d.inHours;
+    final minutes = d.inMinutes % 60;
+    if (hours > 0) return '締切まであと$hours時間$minutes分';
+    return '締切まであと$minutes分';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final votesAsync = ref.watch(allTruthVotesProvider(widget.requestId));
     final total = votesAsync.value?.length ?? 0;
+    final remaining = widget.closesAt.difference(DateTime.now());
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -232,9 +267,19 @@ class _BlindMeter extends ConsumerWidget {
         children: [
           Icon(Icons.blur_on, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: 6),
-          Text(
-            '真偽判定 審議中 — 現在$total人が投票中',
-            style: Theme.of(context).textTheme.bodySmall,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('審議投票中 — 現在$total人が投票中', style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  _formatRemaining(remaining),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -242,8 +287,9 @@ class _BlindMeter extends ConsumerWidget {
   }
 }
 
-/// design/product.md 3.4.4節「2階建てインテリジェンス・メーター」。Top5%/Top25%それぞれの
-/// 「黒（嘘）」比率をバーで独立表示する。アンロック後（自分の投票完了後 or 確定後）にのみ表示する。
+/// design/product.md 3.4.4節「インテリジェンス・メーター」。締切後（または自分の投票完了後）に
+/// アンロックされる、真/偽の内訳を1本のバーに色分けして表示するメーター。件数・比率・真偽の
+/// ラベルはすべてバー内にオーバーレイ表示する。
 class _IntelligenceMeter extends ConsumerWidget {
   const _IntelligenceMeter({required this.requestId});
 
@@ -254,60 +300,51 @@ class _IntelligenceMeter extends ConsumerWidget {
     final votesAsync = ref.watch(allTruthVotesProvider(requestId));
     final votes = votesAsync.value ?? const [];
 
-    final top5Votes = votes.where((v) => v.isTop5).toList();
-    final top25Votes = votes.where((v) => !v.isTop5).toList();
+    final trueCount = votes.where((v) => v.verdict).length;
+    final falseCount = votes.length - trueCount;
+    final total = trueCount + falseCount;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _MeterRow(label: 'Top 5% (Masters)', color: Colors.purple, votes: top5Votes),
-        const SizedBox(height: 4),
-        _MeterRow(label: 'Top 25% (Seniors)', color: Colors.blue, votes: top25Votes),
-      ],
-    );
-  }
-}
-
-class _MeterRow extends StatelessWidget {
-  const _MeterRow({required this.label, required this.color, required this.votes});
-
-  final String label;
-  final Color color;
-  final List<TruthVote> votes;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = votes.length;
-    final falseCount = votes.where((v) => !v.verdict).length;
-    final falseRatio = total == 0 ? 0.0 : falseCount / total;
-
-    return Row(
-      children: [
-        SizedBox(
-          width: 96,
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.bold),
-          ),
+    if (total == 0) {
+      return Container(
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(6),
         ),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: total == 0 ? 0 : falseRatio,
-              minHeight: 8,
-              backgroundColor: color.withValues(alpha: 0.15),
-              valueColor: AlwaysStoppedAnimation<Color>(color),
+        child: Text('投票なし', style: Theme.of(context).textTheme.labelSmall),
+      );
+    }
+
+    final truePct = (trueCount / total * 100).round();
+    final falsePct = 100 - truePct;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        height: 28,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Row(
+              children: [
+                if (trueCount > 0) Expanded(flex: trueCount, child: Container(color: Colors.green)),
+                if (falseCount > 0) Expanded(flex: falseCount, child: Container(color: Colors.red)),
+              ],
             ),
-          ),
+            Center(
+              child: Text(
+                '真 $truePct%（$trueCount） 偽 $falsePct%（$falseCount）',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  shadows: const [Shadow(color: Colors.black54, blurRadius: 2)],
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 6),
-        Text(
-          total == 0 ? '票なし' : '黒 ${(falseRatio * 100).round()}%（$total票）',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
+      ),
     );
   }
 }
