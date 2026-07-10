@@ -184,7 +184,9 @@ create table public.endorsements (
 -- 「Create権限保持者によるオプトイン型の真偽投票」1本に統合した後継テーブル）。
 -- 投稿には既定で真偽投票UIを一切表示せず、`Create`権限保持者（上位25%以上）がこのリクエストを
 -- 起票した投稿のみ、真偽投票（truth_votes）が可能になる（product.md 2.1節・3.4節）。
--- 投票参加資格はさらに「投稿者本人と同格以上の知能階層」に絞られる（下記truth_votes参照）。
+-- Feed/Discover双方のcontextの投稿を対象にできる（旧設計ではcontext='discover'限定だったが解禁した）。
+-- 投票参加資格はさらに「投稿者本人と同格以上の知能階層」に絞られるが、リクエスト起票者本人
+-- （requested_by）はこの制限を免除され、常に自分が起票した投票に参加できる（下記truth_votes参照）。
 create table public.truth_judgment_requests (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references public.posts(id) on delete cascade,
@@ -203,8 +205,9 @@ create table public.truth_judgment_requests (
   created_at timestamptz not null default now(),
   unique (post_id) -- 1投稿につきリクエストは1回のみ（再リクエスト不可。誤操作防止）
 );
--- RLS: select全公開。insertは`Create`権限保持者（intellect_percentile <= 25 相当、RLS内で`profiles`参照）のみ、
--- かつ対象postがcontext='discover'の場合のみ許可。update/deleteはEdge Function（service role）のみ。
+-- RLS: select全公開。insertは`Create`権限保持者（intellect_percentile <= 25 相当、RLS内で`profiles`参照）
+-- のみ許可（対象postのcontextは問わない、Feed/Discover双方許可）。update/deleteはEdge Function
+-- （service role）のみ。
 
 -- 真偽投票（投票権チケット消費、product.md 3.4.2節〜3.4.3節）。
 -- 直接TPを賭け合うP2Pの賭博構造を避けるため、投票はTPではなく「投票権チケット」を1枚消費する
@@ -221,10 +224,12 @@ create table public.truth_votes (
 );
 -- RLS: select全公開（ただし4章のブラインド投票フェーズ中は、クライアント側で自分の投票以外の
 --   verdict内訳をUI上マスクし、「総票数」のみ見せる。締切/自分の投票完了後にアンロックする）。
---   insertは以下すべてを満たす場合のみ許可:
+--   insertは以下すべてを満たす場合のみ許可（cast_truth_vote RPC内で検証）:
 --   (1) is_top_intellect_tier(auth.uid())（Create権限、上位25%以上）
 --   (2) profiles.intellect_percentile <= truth_judgment_requests.author_intellect_percentile_snapshot
---       （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）
+--       （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）。ただし
+--       auth.uid() = truth_judgment_requests.requested_by（リクエスト起票者本人）の場合はこの
+--       階層チェックを免除する（起票者本人は常に自分の起票した投票に参加できる）
 --   (3) 対象request.status='voting'かつcloses_at未到達
 --   (4) auth.uid() <> 対象postのauthor_id（投稿者本人による自己投票（自演）を禁止。利益相反防止）
 --   (5) user_assets.ticket_count > 0（チケット保有）— insert時のRPC（cast_truth_vote）内で
@@ -598,7 +603,7 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
    └─ posts.domain_labels に反映（信頼度が閾値未満の場合はラベル付与を見送る）
 ```
 
-- 全投稿ではなく、一定文字数以上・シリアス投稿（ステーキング投稿）を優先して実行し、API呼び出し回数を抑制する（12章）。
+- 全投稿ではなく、一定文字数以上・シリアス投稿（TP消費投稿）を優先して実行し、API呼び出し回数を抑制する（12章）。
 - 出力はJSON形式で厳密にスキーマ指定し、パース失敗時はラベル付与をスキップして処理を継続する。
 
 ### 6.2 クイズ自動生成 + マルチエージェント検証パイプライン
@@ -687,8 +692,8 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
    │         多重付与はlast_daily_ticket_granted_atのユニーク日付チェックで防止）
    │
    ├─ 1. リクエスト起票（Edge Function: request_truth_judgment）
-   │      ├─ 呼び出し元が is_top_intellect_tier(auth.uid()) であること、
-   │      │  対象postが context='discover' であることをEdge Function側でも再検証（RLSと二重チェック）
+   │      ├─ 呼び出し元が is_top_intellect_tier(auth.uid()) であることを検証
+   │      │  （対象postのcontextはfeed/discoverいずれでも可。旧設計のdiscover限定は解禁済み）
    │      ├─ truth_judgment_requests に1行insert
    │      │  （author_intellect_percentile_snapshot=対象投稿者の現在のintellect_percentileをコピー、
    │      │   opens_at=now(), closes_at=now()+Remote Config `truth_judgment_window_hours`,
@@ -698,7 +703,8 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
    ├─ 2. 投票（Edge Function: cast_truth_vote）
    │      ├─ is_top_intellect_tier(auth.uid())、request.status='voting'、closes_at未到達を検証
    │      ├─ profiles.intellect_percentile <= request.author_intellect_percentile_snapshot
-   │      │  （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）を検証
+   │      │  （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）を検証。ただし
+   │      │  auth.uid() = request.requested_by（起票者本人）の場合はこの階層チェックを免除する
    │      ├─ user_assets.ticket_count > 0 を検証し、同一トランザクションでticket_countを-1
    │      │  （TP増減は発生しない。product.md 3.4.5節「チケット仲介方式」）
    │      ├─ voter_tier を投票時点のintellect_percentileから 'top5' | 'top25' に判定して記録
@@ -1003,7 +1009,7 @@ Mux（動画基盤）は開発初期を **Free プラン**（月間配信100,000
 | Google Play Console | 審査提出・ポリシー指摘対応、データセーフティフォーム維持、コンテンツレーティング更新、段階的ロールアウト監視 | リリース都度 |
 | 利用規約/プライバシー | データ削除・開示請求対応（自動化未設計、問い合わせベース）、規約更新（[docs/terms.md](../docs/terms.md) / [docs/privacy.md](../docs/privacy.md)） | 発生都度 |
 | カスタマーサポート | サポートメール問い合わせ対応 | 常時 |
-| セキュリティ | スコア操作・ステーキング悪用等、自動検知対象外の経済的搾取パターンの目視監視 | 随時 |
+| セキュリティ | スコア操作・TP消費悪用等、自動検知対象外の経済的搾取パターンの目視監視 | 随時 |
 
 自動化パイプラインの外れ値を拾う一次窓口が最低1名、継続的に必要になる運用設計である点に留意する。
 

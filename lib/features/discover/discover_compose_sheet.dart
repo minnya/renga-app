@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'discover_controller.dart';
 
-/// design/product.md 2.1節「Discoverの`Create`権限」・3.4節「ステーキング・ツイート」。
+/// design/product.md 2.1節「Discoverの`Create`権限」・3.4節「TP消費投稿」。
 /// Create権限（上位25%以上）保持者のみが呼び出せる、Discoverへの新規投稿ボトムシート。
 /// `create_discover_post` RPCは通常投稿より高いTP消費を課すため、`ComposeSheet`
 /// （Feed用）とは分けたシンプルな専用UIとする。
@@ -36,7 +36,7 @@ class _DiscoverComposeSheetState extends ConsumerState<DiscoverComposeSheet> {
       return;
     }
     if (stake == null || stake <= 0) {
-      setState(() => _errorMessage = '賭けるTPは1以上を指定してください');
+      setState(() => _errorMessage = '消費するTPは1以上を指定してください');
       return;
     }
 
@@ -111,7 +111,7 @@ class _DiscoverComposeSheetState extends ConsumerState<DiscoverComposeSheet> {
                   enabled: !_isSubmitting,
                   keyboardType: const TextInputType.numberWithOptions(decimal: false),
                   decoration: const InputDecoration(
-                    labelText: '賭けるTP',
+                    labelText: '消費するTP',
                     helperText: 'Discover新規投稿は通常投稿より高いTP消費が課されます',
                     border: OutlineInputBorder(),
                   ),

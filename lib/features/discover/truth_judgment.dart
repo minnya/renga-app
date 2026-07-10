@@ -1,4 +1,4 @@
-/// design/product.md 3.4節「ステーキングとロジックチェック（Discover内・真偽投票）」。
+/// design/product.md 3.4節「TP消費投稿とロジックチェック（Discover内・真偽投票）」。
 /// `supabase/migrations/20260709150000_truth_judgment_system.sql` の
 /// `truth_judgment_requests` テーブルに対応するモデル。
 class TruthJudgmentRequest {

@@ -14,7 +14,7 @@ import 'quoted_post_card.dart';
 import 'video_upload_controller.dart';
 import 'youtube_utils.dart';
 
-/// design/product.md 3.4節「ステーキングとロジックチェック」の投稿種別。
+/// design/product.md 3.4節「TP消費投稿とロジックチェック」の投稿種別。
 /// フィードのレイヤーフィルターと同様、feed_page.dartのSegmentedButtonパターンを踏襲する。
 enum _ComposeMode { normal, staked }
 
@@ -26,8 +26,8 @@ enum _ComposeMode { normal, staked }
 ///
 /// ログイン中のユーザーのみ投稿できる。未ログイン時は投稿ボタンを無効化し、
 /// ログインを促す案内を表示する。
-/// design/product.md 3.4節に従い、通常投稿とステーキング投稿を切り替えられる。
-/// ステーキング投稿はロック解除クイズ（design/product.md 3.2節）に全問正解しないと送信できない。
+/// design/product.md 3.4節に従い、通常投稿とTP消費投稿を切り替えられる。
+/// TP消費投稿はロック解除クイズ（design/product.md 3.2節）に全問正解しないと送信できない。
 class ComposeSheet extends ConsumerStatefulWidget {
   /// design/product.md 3.1節「YouTubeアプリの共有シートに登場」。
   /// YouTubeアプリの共有シート等からRengaが起動された場合、共有された
@@ -217,7 +217,7 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
     }
   }
 
-  /// design/product.md 3.4節「ステーキング・ツイート」。
+  /// design/product.md 3.4節「TP消費投稿」。
   /// design/product.md 3.2節「ロック解除クイズ（通行料）」を投稿前に必須で挟み、
   /// 全問正解した場合のみ `create_staked_post` RPC（design/system.md 7章参照）で
   /// TP減算と投稿作成をアトミックに行う。
@@ -235,7 +235,7 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
 
     setState(() => _errorMessage = null);
 
-    // ロック解除クイズに全問正解しないとステーキング投稿はブロックされる。
+    // ロック解除クイズに全問正解しないとTP消費投稿はブロックされる。
     final passed = await showLockQuizDialog(context);
     if (!mounted) return;
     if (!passed) {
@@ -453,7 +453,7 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
                         style: TextStyle(color: Theme.of(context).colorScheme.error),
                       ),
                     ),
-                  // ステーキング投稿の場合、TP入力フィールド
+                  // TP消費投稿の場合、TP入力フィールド
                   if (_mode == _ComposeMode.staked)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -479,7 +479,7 @@ class _ComposeSheetState extends ConsumerState<ComposeSheet> {
                     ),
                   ),
                   // 投稿モード切替（SegmentedButton）。design/product.md 3.12節「引用リポスト」:
-                  // ステーキング投稿（`create_staked_post` RPC）は引用元IDを扱えないため、
+                  // TP消費投稿（`create_staked_post` RPC）は引用元IDを扱えないため、
                   // 引用リポストモードでは非表示にし常に通常投稿として扱う。
                   if (widget.quotedPost == null)
                     Padding(

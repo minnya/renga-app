@@ -112,8 +112,8 @@ class Post {
   /// design/system.md 1章 `posts.post_type`（normal | staked | battle_challenge）。
   final String postType;
 
-  /// design/system.md 1章 `posts.staked_tp`。design/product.md 3.4節「ステーキング・ツイート」で
-  /// 賭けたTP量。`postType == 'staked'` の場合のみ意味を持つ。
+  /// design/system.md 1章 `posts.staked_tp`。design/product.md 3.4節「TP消費投稿」で
+  /// 消費したTP量。`postType == 'staked'` の場合のみ意味を持つ。
   final num stakedTp;
 
   /// design/product.md 3.12節「基本エンゲージメント機能」。いいね件数。

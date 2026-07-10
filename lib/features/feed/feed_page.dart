@@ -13,6 +13,7 @@ import '../../shared/time_format.dart';
 import '../quiz/quiz_controller.dart';
 import '../discover/discover_controller.dart' show domainDisplayLabel, isTopIntellectTierProvider;
 import '../discover/discover_promote_dialog.dart';
+import '../discover/truth_judgment_section.dart';
 import 'comments_sheet.dart';
 import 'compose_sheet.dart';
 import 'feed_controller.dart';
@@ -713,6 +714,9 @@ class _PostTileState extends ConsumerState<PostTile> {
                   ),
                 ],
               ),
+              // design/product.md 3.4節「真偽投票」。Feed/Discover双方の投稿に表示する
+              // （旧: Discover画面側で個別に表示していたが、PostTile側へ統合した）。
+              TruthJudgmentSection(postId: post.id, postAuthorId: post.authorId),
             ],
           ),
         ),

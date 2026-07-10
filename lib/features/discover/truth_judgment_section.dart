@@ -9,13 +9,14 @@ import 'truth_judgment.dart';
 
 /// design/product.md 3.4節「反応手段2：真偽投票（投票権チケット消費、リクエスト起点）」。
 ///
-/// Discoverコンテキストの投稿1件につき表示する真偽審判UI。常時表示ではなく
+/// Feed/Discoverいずれのコンテキストの投稿にも表示する真偽審判UI。常時表示ではなく
 /// オプトイン型で、リクエストが起票されている投稿にのみ投票UI・結果が現れる。
 ///
 /// - リクエスト未起票: `Create`権限（上位25%以上）保持者にのみ活性の「真偽審判リクエスト」ボタンを
 ///   表示する。それ以外のユーザーには非活性状態で表示し、タップ時に理由を説明するダイアログを出す。
 /// - 投票中（`voting`）: 投票資格（上位25%かつ投稿者本人と同格以上、自己投票不可、未投票）を
-///   満たすユーザーにのみ「本当」「嘘」への投票ボタン（チケット1枚消費）を表示する。
+///   満たすユーザーにのみ「本当」「嘘」への投票ボタン（チケット1枚消費）を表示する。起票者本人は
+///   投稿者本人以上の知能階層チェックを免除され、常に自分が起票した投票に参加できる。
 /// - **ブラインド投票フェーズ（3.4.2節）**: 自分がまだ投票していない間は、投票比率を一切見せず
 ///   「現在N人投票中」という総数のみ表示する（モザイク）。自分の投票が成立した瞬間、または
 ///   `resolved`/`invalid`確定後に、2階建てインテリジェンス・メーター（3.4.4節）としてアンロックする。
@@ -156,12 +157,15 @@ class _RequestBodyState extends ConsumerState<_RequestBody> {
 
     final myVote = myVoteAsync.value;
     final isAuthor = currentUser != null && currentUser.id == widget.postAuthorId;
+    final isRequester = currentUser != null && currentUser.id == request.requestedBy;
     final myPercentile = myProfileAsync.value?['intellect_percentile'] as num?;
+    // design/product.md 3.4節。起票者本人は「投稿者本人と同格以上」の階層チェックを免除される
+    // （審議ボタンを押した本人も自分が起票した投票に参加できる）。
     final isEligible = widget.isTopTier &&
         !isAuthor &&
         currentUser != null &&
-        myPercentile != null &&
-        myPercentile <= request.authorIntellectPercentileSnapshot;
+        (isRequester ||
+            (myPercentile != null && myPercentile <= request.authorIntellectPercentileSnapshot));
 
     // design/product.md 3.4.2節「処刑フェーズ」。確定済み、または自分が投票済みの場合のみ
     // 2階建てメーターをアンロックする。それ以外（自分が未投票かつ投票中）はブラインドのまま。

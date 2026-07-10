@@ -539,9 +539,8 @@ class _SignedInProfileView extends ConsumerWidget {
           icon: Icons.toll,
           color: RengaColors.accent,
           title: 'TP（トークンポイント）',
-          description: 'TPはステーキング投稿などアプリ内の各種アクションで使用するポイントです。'
-              'クイズ通過や日々の活動で獲得でき、ステーキング・ツイートで賭けることができます'
-              '（design/product.md 3.4節）。',
+          description: 'TPはTP消費投稿など、アプリ内の各種アクションで消費するポイントです。'
+              'クイズ通過や日々の活動、真偽投票の的中で獲得できます。',
         ),
         child: Chip(
           label: Text('${tpBalanceNum.toStringAsFixed(0)} TP'),

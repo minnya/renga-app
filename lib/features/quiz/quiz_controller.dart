@@ -7,7 +7,7 @@ import '../../core/supabase_client.dart';
 import 'quiz_question.dart';
 
 /// design/product.md 3.2節「ロック解除クイズ（通行料）」に対応する`lockQuiz`を追加。
-/// ステーキング投稿の直前に義務化される1〜2問のクイズ種別。
+/// TP消費投稿の直前に義務化される1〜2問のクイズ種別。
 enum QuizKind { onboarding, daily, lockQuiz }
 
 extension QuizKindX on QuizKind {
@@ -44,7 +44,7 @@ final dailyQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) async {
   return questions.take(3).toList();
 });
 
-/// design/product.md 3.2節「ロック解除クイズ（通行料）: シリアス投稿(ステーキング)時に1〜2問を義務化」。
+/// design/product.md 3.2節「ロック解除クイズ（通行料）: TP消費投稿時に1〜2問を義務化」。
 /// プール(4問)からランダムに2問抽出する。TP付与は行わず、通行料としての正誤判定のみに使う。
 final lockQuizQuestionsProvider = FutureProvider.autoDispose<List<QuizQuestion>>((ref) async {
   final rows = await supabase
