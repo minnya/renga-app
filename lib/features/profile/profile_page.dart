@@ -8,6 +8,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../shared/info_bottom_sheet.dart';
 import '../../shared/iq_format.dart';
 import '../../shared/score_format.dart';
+import '../discover/discover_controller.dart' show ticketCountProvider;
 import '../feed/fullscreen_media_viewer.dart';
 import '../feed/intellect_badge.dart';
 import '../messages/messages_controller.dart';
@@ -158,6 +159,7 @@ class _SignedInProfileView extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _buildBadgeRow(
                   context,
+                  ref,
                   intellectPercentile,
                   tpBalance,
                   strikeCount,
@@ -521,6 +523,7 @@ class _SignedInProfileView extends ConsumerWidget {
 
   Widget _buildBadgeRow(
     BuildContext context,
+    WidgetRef ref,
     num? intellectPercentile,
     dynamic tpBalance,
     int strikeCount,
@@ -553,6 +556,34 @@ class _SignedInProfileView extends ConsumerWidget {
         ),
       ),
     );
+
+    // design/product.md 3.4.3節「投票権チケット」。user_assetsは自分の行のみselect可能なRLSのため、
+    // 自分自身のプロフィールでのみ表示する（他人の保有枚数は非公開）。
+    if (isOwnProfile) {
+      final ticketCount = ref.watch(ticketCountProvider).value ?? 0;
+      badges.add(
+        GestureDetector(
+          onTap: () => showInfoBottomSheet(
+            context,
+            icon: Icons.confirmation_number_outlined,
+            color: RengaColors.accent,
+            title: '投票権チケット',
+            description: '真偽投票（3.4節）に参加するために1票につき1枚消費するアイテムです。'
+                '知能スコア上位25%/上位5%のユーザーには毎日無料で3枚配布されます。'
+                'それ以外のユーザーは100TPで1枚購入できます。',
+          ),
+          child: Chip(
+            label: Text('チケット $ticketCount枚'),
+            labelStyle: theme.textTheme.bodySmall,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+            padding: const EdgeInsets.symmetric(vertical: 0),
+            backgroundColor: RengaColors.accent.withValues(alpha: 0.1),
+            side: BorderSide(color: RengaColors.accent.withValues(alpha: 0.3)),
+            visualDensity: VisualDensity.compact,
+          ),
+        ),
+      );
+    }
 
     if (strikeCount > 0) {
       badges.add(
