@@ -2,7 +2,7 @@
 -- ロジックチェック（Discover内・真偽投票）」・design/system.md 7章に対応。
 --
 -- 旧「Battle（挑戦投稿ペア＋観客ベット＋上位5%ジャッジによるlogic_verdicts）」の仕組みを廃止し、
--- 「Create権限保持者（上位25%以上）によるオプトイン型の真偽投票（truth_judgment_requests /
+-- 「Create権限保持者（上位25%%以上）によるオプトイン型の真偽投票（truth_judgment_requests /
 -- truth_votes）」1本へ統合する。あわせてTP増減の監査元帳（tp_transactions）と、
 -- Feed→Discoverキュレーション（discover_promotions）を追加する。
 
@@ -99,7 +99,7 @@ begin
     raise exception 'ログインが必要です';
   end if;
   if not public.is_top_intellect_tier(v_user_id) then
-    raise exception 'Discoverへの引き上げは上位25%以上のユーザーのみ行えます';
+    raise exception 'Discoverへの引き上げは上位25%%以上のユーザーのみ行えます';
   end if;
   if p_tp_cost is null or p_tp_cost <= 0 then
     raise exception 'TP消費量は1以上を指定してください';
@@ -142,7 +142,7 @@ begin
     raise exception 'ログインが必要です';
   end if;
   if not public.is_top_intellect_tier(v_user_id) then
-    raise exception 'Discoverへの新規投稿は上位25%以上のユーザーのみ行えます';
+    raise exception 'Discoverへの新規投稿は上位25%%以上のユーザーのみ行えます';
   end if;
   if p_staked_tp is null or p_staked_tp <= 0 then
     raise exception '賭けるTPは1以上を指定してください';
@@ -235,7 +235,7 @@ begin
     raise exception 'ログインが必要です';
   end if;
   if not public.is_top_intellect_tier(v_user_id) then
-    raise exception '真偽審判リクエストは上位25%以上のユーザーのみ起票できます';
+    raise exception '真偽審判リクエストは上位25%%以上のユーザーのみ起票できます';
   end if;
 
   select author_id, context into v_author_id, v_post_context from public.posts where id = p_post_id;
@@ -281,7 +281,7 @@ begin
     raise exception '賭けるTPは1以上を指定してください';
   end if;
   if not public.is_top_intellect_tier(v_user_id) then
-    raise exception '真偽投票は上位25%以上のユーザーのみ行えます';
+    raise exception '真偽投票は上位25%%以上のユーザーのみ行えます';
   end if;
 
   select * into v_request from public.truth_judgment_requests where id = p_request_id for update;
