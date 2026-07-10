@@ -71,7 +71,7 @@ class TruthVote {
     required this.requestId,
     required this.userId,
     required this.verdict,
-    required this.stakedTp,
+    required this.voterTier,
     required this.createdAt,
     this.payoutTp,
   });
@@ -82,9 +82,13 @@ class TruthVote {
 
   /// true=本当, false=嘘
   final bool verdict;
-  final num stakedTp;
+
+  /// 投票時点の知能階層。'top5' | 'top25'（product.md 3.4.4節の2階建てメーター集計に使用）。
+  final String voterTier;
   final num? payoutTp;
   final DateTime createdAt;
+
+  bool get isTop5 => voterTier == 'top5';
 
   factory TruthVote.fromMap(Map<String, dynamic> map) {
     return TruthVote(
@@ -92,7 +96,7 @@ class TruthVote {
       requestId: map['request_id'] as String,
       userId: map['user_id'] as String,
       verdict: map['verdict'] as bool,
-      stakedTp: map['staked_tp'] as num,
+      voterTier: map['voter_tier'] as String? ?? 'top25',
       payoutTp: map['payout_tp'] as num?,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
