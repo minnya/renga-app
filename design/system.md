@@ -960,10 +960,13 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
    │     依存しない。v0.0.1から開始）
    ├─ 2. GitHubの generate_release_notes 機能でマージ済みPR群からリリースノートを自動生成し、
    │     GitHub Release の下書き（Draft）を作成する
-   ├─ 3. GitHub Secrets（SUPABASE_URL / SUPABASE_ANON_KEY / GOOGLE_OAUTH_CLIENT_ID）から
-   │     .env をCIワークスペース内に生成する（pubspec.yamlのassetとして必須、かつ
-   │     アプリ起動時にSUPABASE_URL/SUPABASE_ANON_KEYが無いと例外を投げるため必須）
-   ├─ 4. GitHub Secrets の ANDROID_KEYSTORE_BASE64 をデコードし、CIワークスペース内に
+   ├─ 3. SOPS（後述）で `secrets/ci.enc.yaml` を復号し、`SUPABASE_URL` / `SUPABASE_ANON_KEY` /
+   │     `GOOGLE_OAUTH_CLIENT_ID` から .env を、`GOOGLE_SERVICES_JSON` から
+   │     `android/app/google-services.json` をそれぞれCIワークスペース内に生成する
+   │     （.envはpubspec.yamlのassetとして必須、かつアプリ起動時にSUPABASE_URL/
+   │     SUPABASE_ANON_KEYが無いと例外を投げるため必須。google-services.jsonはGoogle
+   │     Services Gradle Pluginのビルド必須ファイル）
+   ├─ 4. 同じくSOPSで復号した `ANDROID_KEYSTORE_BASE64` をデコードし、CIワークスペース内に
    │     upload-keystore.jks を一時復元する（ジョブ終了後は使い捨て、リポジトリには残さない）
    ├─ 5. Nをversion_code（--build-number）・version_name（--build-name=0.0.N）として
    │     flutter build appbundle --release を実行する
@@ -977,25 +980,27 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
    │     バイナリはDraft時点で人が確認できたものと完全に一致する）
    ├─ 2. gh release view で公開時点の確定リリースノートを取得し、Playストアの文字数制限（500文字）
    │     に収まるよう整形して android/whatsnew/whatsnew-ja-JP に書き出す
-   └─ 3. r0adkll/upload-google-play アクションで .aab とリリースノートを
+   ├─ 3. SOPSで `secrets/ci.enc.yaml` から `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` のみを
+   │     抽出復号する
+   └─ 4. r0adkll/upload-google-play アクションで .aab とリリースノートを
          Google Play の production トラックへアップロード
 ```
 
 バージョンコード（Android `versionCode`）はGitHub Actionsのrepository variables（vars）では管理しない。`vars`への書き込みはデフォルトの`GITHUB_TOKEN`では権限上できず（Fine-grained PAT等の追加トークンが必須）、そのための権限管理コストを避けるため、既存のGitHub Release一覧というGITHUB_TOKEN権限内で完結する情報源から都度算出する方式を採用する（Releaseを削除すると採番がずれるため、公開済みReleaseの削除は避ける）。
 
+**シークレット管理方針（SOPS + age）**:
+
+CIで必要な環境変数・鍵ファイルの種類が増えたため、個々のGitHub Secretsを都度追加していく方式ではなく、**SOPS（age鍵）で暗号化した1ファイル**（`secrets/ci.enc.yaml`）にまとめてリポジトリにコミットし、復号鍵1つだけをGitHub Secretsで管理する方式に切り替えた。
+
+- `secrets/ci.enc.yaml`: SUPABASE_URL / SUPABASE_ANON_KEY / GOOGLE_OAUTH_CLIENT_ID / ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD / GOOGLE_SERVICES_JSON / GOOGLE_PLAY_SERVICE_ACCOUNT_JSON をまとめたYAMLをage鍵で暗号化したもの。値はSOPSにより暗号化されているため**リポジトリにコミットしてよい**（`.gitignore`で`secrets/*`を除外しつつ、このファイルだけ`!secrets/ci.enc.yaml`で例外的に追跡対象にしている）。
+- `.sops.yaml`: `secrets/ci.enc.yaml` に対する暗号化ルール（対象のage公開鍵）を定義するSOPS設定ファイル。
+- 復号鍵（age秘密鍵）は `SOPS_AGE_KEY` という1つのGitHub Secretとしてのみ登録する。CI上では `sops --decrypt secrets/ci.enc.yaml` で復号し、`yq` で個々の値を取り出して `.env` ・ `android/app/google-services.json` ・ keystoreファイルへ書き出す（Play Consoleサービスアカウントのみ`sops --extract`で単独抽出）。
+- ローカル開発者が鍵を追加・更新する場合は、復号 → 平文YAML編集 → 再暗号化（`sops --encrypt --in-place`）→ コミット、という手順を踏む。age秘密鍵ファイル（`~/.config/sops/age/keys.txt`相当）を紛失すると`secrets/ci.enc.yaml`が誰にも復号できなくなるため、開発者各自が安全な場所に必ずバックアップする。
+- 個別のGitHub Secrets（`ANDROID_KEYSTORE_BASE64`等）は本移行後もリポジトリに残しているが、ワークフローはSOPS経由の値のみを参照するため実質未使用（将来的に整理して削除してもよい）。
+
 **署名鍵の管理方針**:
 
-- 本番アップロードキー（`upload-keystore.jks`）はリポジトリにコミットしない。ローカルで `keytool -genkeypair` により生成し、開発者のマシン等、リポジトリ外の安全な場所に保管する。
-- CIでの利用のため、鍵をBase64エンコードして以下のGitHub Secrets（`Settings > Secrets and variables > Actions`）に登録する。
-
-| Secret名 | 内容 |
-|---|---|
-| `ANDROID_KEYSTORE_BASE64` | `upload-keystore.jks` をBase64エンコードした文字列（CI上でデコードして復元） |
-| `ANDROID_KEYSTORE_PASSWORD` | ストアパスワード |
-| `ANDROID_KEY_ALIAS` | 鍵のエイリアス名 |
-| `ANDROID_KEY_PASSWORD` | キーパスワード |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | `r0adkll/upload-google-play` 用のGoogle Playサービスアカウント鍵（JSON） |
-
+- 本番アップロードキー（`upload-keystore.jks`）はリポジトリにコミットしない。ローカルで `keytool -genkeypair` により生成し、開発者のマシン等、リポジトリ外の安全な場所に保管する。CIでの利用のため、鍵をBase64エンコードして上記`secrets/ci.enc.yaml`（`ANDROID_KEYSTORE_BASE64`）に含める。
 - `android/app/build.gradle.kts` の `signingConfigs.release` は、CI環境から上記4つの環境変数（`ANDROID_KEYSTORE_PATH` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`）が揃っている場合はそれを優先し、揃っていない場合はローカルの `android/key.properties`（Git管理外、開発者手元のみ）を読み込むフォールバック構成とする。どちらも存在しない場合は従来通りdebug鍵で署名し、`flutter run --release` のローカル動作を妨げない。
 
 ---
