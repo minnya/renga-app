@@ -10,6 +10,7 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../core/auth_state.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../shared/time_format.dart';
+import '../../shared/translatable_text.dart';
 import '../quiz/quiz_controller.dart';
 import '../discover/discover_controller.dart' show domainDisplayLabel, isTopIntellectTierProvider;
 import '../discover/discover_promote_dialog.dart';
@@ -602,8 +603,8 @@ class _PostTileState extends ConsumerState<PostTile> {
               if (post.body.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    post.body,
+                  child: TranslatableText(
+                    text: post.body,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),

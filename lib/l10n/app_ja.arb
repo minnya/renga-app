@@ -309,5 +309,9 @@
   "messagesConversationDeleteConfirmTitle": "この会話を削除しますか？",
   "messagesConversationDeleteConfirmMessage": "この操作はあなたの会話一覧からのみ会話を削除します。相手には影響しません。",
   "messagesProfileMessageButton": "メッセージ",
-  "messagesStartConversationError": "会話の開始に失敗しました: {error}"
+  "messagesStartConversationError": "会話の開始に失敗しました: {error}",
+
+  "translateButton": "翻訳",
+  "showOriginalButton": "原文を表示",
+  "translateError": "翻訳に失敗しました: {error}"
 }

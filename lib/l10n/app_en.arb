@@ -616,5 +616,15 @@
         "type": "String"
       }
     }
+  },
+  "translateButton": "Translate",
+  "showOriginalButton": "Show original",
+  "translateError": "Translation failed: {error}",
+  "@translateError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   }
 }

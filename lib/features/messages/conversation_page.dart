@@ -12,6 +12,7 @@ import '../../app/theme.dart';
 import '../../core/auth_state.dart';
 import '../../core/supabase_client.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../shared/translatable_text.dart';
 import '../feed/fullscreen_media_viewer.dart';
 import '../feed/video_player_widget.dart';
 import 'dm_message.dart';
@@ -415,7 +416,13 @@ class _MessageBubble extends StatelessWidget {
           color: bubbleColor,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(message.body ?? '', style: TextStyle(color: textColor)),
+        child: (message.body?.isNotEmpty ?? false)
+            ? TranslatableText(
+                text: message.body!,
+                style: TextStyle(color: textColor),
+                linkColor: isMe ? Colors.white : null,
+              )
+            : Text(message.body ?? '', style: TextStyle(color: textColor)),
       );
     }
 
