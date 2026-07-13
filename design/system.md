@@ -200,7 +200,7 @@ create table public.truth_judgment_requests (
   false_vote_count int not null default 0,
   quorum_threshold int not null default 10, -- 締切時にtrue+false投票数がこれ未満なら invalid（無効・全額返還）。Remote Config `truth_judgment_quorum` から起票時にコピー
   opens_at timestamptz not null default now(),
-  closes_at timestamptz not null, -- opens_at + 24〜72時間（Remote Config `truth_judgment_window_hours`）。pg_cronがこの時刻到達で自動締切
+  closes_at timestamptz not null, -- opens_at + 24時間（Remote Config `truth_judgment_window_hours`）。pg_cronがこの時刻到達で自動締切
   resolved_at timestamptz,
   created_at timestamptz not null default now(),
   unique (post_id) -- 1投稿につきリクエストは1回のみ（再リクエスト不可。誤操作防止）
@@ -516,7 +516,7 @@ Edge Functionsは「イベント発生時（Endorse獲得、バッジ実績解�
 
 ### Remote Configの利用方針
 
-- キー例: `daily_quiz_count`, `lock_quiz_question_count`, `strike_thresholds`（例: `[1,3,5]`、7章）, `truth_judgment_window_hours`（例: 48）, `truth_judgment_quorum`（例: 10）, `ticket_tp_price`（例: 100）, `ticket_bulk_discount_tiers`, `daily_free_ticket_count`（例: 3、Top 25%/Top 5%向け）, `domain_expert_vote_streak_threshold`（product.md 3.4.1節）, `default_layer_filter`, `feature_expert_discovery_enabled`, `ads_enabled`。
+- キー例: `daily_quiz_count`, `lock_quiz_question_count`, `strike_thresholds`（例: `[1,3,5]`、7章）, `truth_judgment_window_hours`（例: 24）, `truth_judgment_quorum`（例: 10）, `ticket_tp_price`（例: 100）, `ticket_bulk_discount_tiers`, `daily_free_ticket_count`（例: 3、Top 25%/Top 5%向け）, `domain_expert_vote_streak_threshold`（product.md 3.4.1節）, `default_layer_filter`, `feature_expert_discovery_enabled`, `ads_enabled`。
 - Remote Configの値は「クライアント側の表示・UX調整」に限定し、金銭・スコアに関わる**信頼できる計算はEdge Function/DB側に必ず二重で持たせる**（クライアント改ざん対策）。
 - Firebase CLIでテンプレート（`remoteconfig.template.json`）をバージョン管理し、`firebase deploy --only remoteconfig` でデプロイする。
 
@@ -668,6 +668,27 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
   キーワード/カテゴリベースの簡易フィルタをEdge Function側にも設置する。
 - 生成問題・ドメインラベルの誤りが疑われる場合にユーザーが報告できる導線を将来的にFeed/Quiz画面に
   用意し、報告が集中した問題は自動的に `is_active = false` にする運用を検討する（Phase 3以降）。
+
+### 6.5 テキスト翻訳
+
+product.md 3.12.1節「投稿・DMメッセージの自動翻訳」に対応するEdge Function
+`translate_text` を新設する。`label_post_domain`と同じ認証パターン（AuthorizationヘッダーのユーザーJWT
+検証のみ、DB更新は行わない）に倣う。
+
+```
+[投稿/DMメッセージ本文] → [Translate ボタンタップ] → [Edge Function: translate_text]
+   ├─ 入力: { text: string, target_locale: 'en' | 'ja' }
+   ├─ Gemini (軽量モデル、label_post_domainと同じ gemini-flash 系) にtarget_localeへの翻訳のみを
+   │   厳密に指示するプロンプトを送信（解説・前置きを含めず翻訳結果のみをJSONで返させる）
+   └─ 応答: { translated_text: string } をクライアントへ返す（DBへの永続化は行わない）
+```
+
+- 翻訳結果はDBに保存せず、都度Gemini呼び出しの結果をクライアントに返すのみ（原文はいつでも
+  `posts.body` / DMメッセージ本文からそのまま参照できるため、キャッシュはクライアントのメモリ内
+  のみで十分。3.12.1節）。
+- 失敗時（Gemini呼び出し失敗・レート制限等）はエラーレスポンスを返し、クライアント側は
+  スナックバー等でエラーを表示してボタン状態を元に戻す（ベストエフォートの`label_post_domain`とは
+  異なり、翻訳はユーザーの明示的な操作起点のため成功/失敗をそのままユーザーに伝える）。
 
 ---
 
