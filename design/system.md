@@ -672,23 +672,30 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
 ### 6.5 テキスト翻訳
 
 product.md 3.12.1節「投稿・DMメッセージの自動翻訳」に対応するEdge Function
-`translate_text` を新設する。`label_post_domain`と同じ認証パターン（AuthorizationヘッダーのユーザーJWT
-検証のみ、DB更新は行わない）に倣う。
+`translate_text` を新設する。翻訳という用途にGeminiの汎用LLM呼び出しを使うのはコスト・レイテンシの
+両面で非効率なため、翻訳専用の**Google Cloud Translation API (v2, Basic)** を使う（他機能
+（ドメインラベリング・クイズ生成・モデレーション）は引き続きGeminiのまま）。`label_post_domain`と
+同じ認証パターン（AuthorizationヘッダーのユーザーJWT検証のみ、DB更新は行わない）に倣う。
 
 ```
 [投稿/DMメッセージ本文] → [Translate ボタンタップ] → [Edge Function: translate_text]
    ├─ 入力: { text: string, target_locale: 'en' | 'ja' }
-   ├─ Gemini (軽量モデル、label_post_domainと同じ gemini-flash 系) にtarget_localeへの翻訳のみを
-   │   厳密に指示するプロンプトを送信（解説・前置きを含めず翻訳結果のみをJSONで返させる）
+   ├─ Google Cloud Translation API v2 (https://translation.googleapis.com/language/translate/v2)
+   │   にAPIキー認証（`GOOGLE_TRANSLATE_API_KEY` Function Secret）で { q: text, target: target_locale,
+   │   format: 'text' } をPOSTする（v2 BasicはAPIキーのみで呼び出せ、v3 Advancedのような
+   │   サービスアカウント/OAuth2は不要）
    └─ 応答: { translated_text: string } をクライアントへ返す（DBへの永続化は行わない）
 ```
 
-- 翻訳結果はDBに保存せず、都度Gemini呼び出しの結果をクライアントに返すのみ（原文はいつでも
-  `posts.body` / DMメッセージ本文からそのまま参照できるため、キャッシュはクライアントのメモリ内
-  のみで十分。3.12.1節）。
-- 失敗時（Gemini呼び出し失敗・レート制限等）はエラーレスポンスを返し、クライアント側は
-  スナックバー等でエラーを表示してボタン状態を元に戻す（ベストエフォートの`label_post_domain`とは
-  異なり、翻訳はユーザーの明示的な操作起点のため成功/失敗をそのままユーザーに伝える）。
+- 翻訳結果はDBに保存せず、都度Google Cloud Translation API呼び出しの結果をクライアントに返すのみ
+  （原文はいつでも`posts.body` / DMメッセージ本文からそのまま参照できるため、キャッシュはクライアント
+  のメモリ内のみで十分。3.12.1節）。
+- 失敗時（API呼び出し失敗・レート制限等）はエラーレスポンスを返し、クライアント側はスナックバー等で
+  エラーを表示してボタン状態を元に戻す（ベストエフォートの`label_post_domain`とは異なり、翻訳は
+  ユーザーの明示的な操作起点のため成功/失敗をそのままユーザーに伝える）。
+- 事前準備: GCPプロジェクトで「Cloud Translation API」を有効化し、そのAPI専用に制限した
+  APIキーを発行して`GOOGLE_TRANSLATE_API_KEY`としてFunction Secretsに設定する
+  （11章の環境変数管理方針に準拠）。
 
 ---
 
