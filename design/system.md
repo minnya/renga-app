@@ -949,14 +949,16 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
 
 ### 11.7 CI/CDパイプライン（GitHub Actions）
 
-`production` ブランチへのマージからGoogle Play Store（`production`トラック）への配信までを、GitHub Actionsの2つのワークフローが連鎖する完全自動フローで行う（人間の承認ステップは挟まない。マージ＝本番配信であることに留意する）。
+`production` ブランチへのマージからGoogle Play Store（`production`トラック）への配信までを、GitHub Actionsの2つのワークフローで自動化する。GitHub Releaseの下書き（Draft）を人間が確認・編集してから公開（Published）する工程を挟むことで、リリースノートの品質確認とリリースタイミングの制御を両立する。
+
+**重要な制約**: `deploy_to_play_store.yml`は必ず**人がGitHub UI上で手動で「Publish release」を実行する**ことで起動する。デフォルトの`GITHUB_TOKEN`を使ってAPI経由（`gh release create`等）でreleaseを作成・公開しても、GitHub Actionsの無限ループ防止仕様により、その`release: published`イベントは他のワークフローの新規トリガーにならない。そのため`create_gh_release_draft.yml`は必ず`--draft`付きでReleaseを作成し、公開操作は人手に委ねる設計とする（PATを使えばAPI経由でも連鎖起動できるが、権限管理の複雑さを避けるため現状は採用しない）。
 
 ```
 [production へのマージ] → create_gh_release_draft.yml
    └─ GitHubの generate_release_notes 機能でマージ済みPR群からリリースノートを自動生成し、
-      GitHub Release を即座に作成・公開する
+      GitHub Release の下書き（Draft）を作成する
 
-[Release作成（published）イベント] → deploy_to_play_store.yml
+[人間が下書きを確認・編集し、Release を Publish] → deploy_to_play_store.yml
    ├─ 1. gh release view で公開時点の確定リリースノートを取得し、Playストアの文字数制限（500文字）
    │     に収まるよう整形して android/whatsnew/whatsnew-ja-JP に書き出す
    ├─ 2. GitHub Secrets の ANDROID_KEYSTORE_BASE64 をデコードし、CIワークスペース内に
