@@ -949,10 +949,10 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
 
 ### 11.7 CI/CDパイプライン（GitHub Actions）
 
-`main` ブランチへのマージからGoogle Play Store（`production`トラック）への配信までを、GitHub Actionsの2つのワークフローで自動化する。GitHub Releaseの下書き（Draft）を人間が確認・編集してから公開（Published）する工程を挟むことで、リリースノートの品質確認とリリースタイミングの制御を両立する。
+`production` ブランチへのマージからGoogle Play Store（`production`トラック）への配信までを、GitHub Actionsの2つのワークフローで自動化する。GitHub Releaseの下書き（Draft）を人間が確認・編集してから公開（Published）する工程を挟むことで、リリースノートの品質確認とリリースタイミングの制御を両立する。
 
 ```
-[main へのマージ] → create_gh_release_draft.yml
+[production へのマージ] → create_gh_release_draft.yml
    └─ GitHubの generate_release_notes 機能でマージ済みPR群からリリースノートを自動生成し、
       GitHub Release の下書き（Draft）を作成する
 

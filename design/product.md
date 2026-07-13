@@ -757,8 +757,8 @@ Play Store審査中〜公開後の告知先、SNS/プロフィールのバイオ
 - `flutter build appbundle --flavor prod -t lib/main_prod.dart` でAndroid App Bundle（.aab）を生成し、Play Consoleにアップロード。
 - 署名鍵（アップロードキー）は安全に管理し、Play App Signingを有効化する。
 - バージョニングは `pubspec.yaml` の `version: x.y.z+build` をCIで自動インクリメントする運用を推奨。
-- **CI/CDパイプライン（GitHub Actions）**: `main` ブランチへのマージ〜Play Store（productionトラック）への配信を、GitHub Releaseの下書き承認を挟んだ2段階のワークフローで自動化する。詳細は [system.md — 11.7 CI/CDパイプライン（GitHub Actions）](system.md#117-cicdパイプラインgithub-actions) を参照。
-  1. `main` へのマージをトリガーに、マージ済みPRから自動生成したリリースノートでGitHub Releaseの下書き（Draft）を作成する（`create_gh_release_draft.yml`）。
+- **CI/CDパイプライン（GitHub Actions）**: `production` ブランチへのマージ〜Play Store（productionトラック）への配信を、GitHub Releaseの下書き承認を挟んだ2段階のワークフローで自動化する。詳細は [system.md — 11.7 CI/CDパイプライン（GitHub Actions）](system.md#117-cicdパイプラインgithub-actions) を参照。
+  1. `production` へのマージをトリガーに、マージ済みPRから自動生成したリリースノートでGitHub Releaseの下書き（Draft）を作成する（`create_gh_release_draft.yml`）。
   2. 人がリリースノートを確認・編集した上でReleaseを公開（Published）すると、それをトリガーに署名付き `.aab` をビルドし、Releaseへ添付した上でGoogle Play `production` トラックへ配信する（`deploy_to_play_store.yml`）。
   - 署名鍵（アップロードキー）はリポジトリに含めず、Base64化してGitHub Secretsで管理し、ビルド時のみ一時的に復元する。
 
