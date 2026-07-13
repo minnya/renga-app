@@ -17,18 +17,64 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Read app version
+      - name: Determine next version (v0.0.N, auto-increment from existing releases)
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(grep '^version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          LATEST=$(gh release list -R "${{ github.repository }}" --limit 200 --json tagName -q '.[].tagName' \
+            | grep -E '^v0\.0\.[0-9]+$' \
+            | sed -E 's/^v0\.0\.//' \
+            | sort -n | tail -1)
+          NEXT=$(( ${LATEST:-0} + 1 ))
+          echo "version_code=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "tag=v0.0.$NEXT" >> "$GITHUB_OUTPUT"
 
       - name: Create release draft with auto-generated notes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.version.outputs.version }}-${{ github.run_number }}" \
+          gh release create "${{ steps.version.outputs.tag }}" \
             --draft \
             --generate-notes \
             --target "${{ github.sha }}" \
-            --title "v${{ steps.version.outputs.version }} (build ${{ github.run_number }})"
+            --title "${{ steps.version.outputs.tag }}"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Write .env
+        run: |
+          cat > .env <<EOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          GOOGLE_OAUTH_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          FLUTTER_APP_ENV=prod
+          EOF
+
+      - name: Restore upload keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
+
+      - name: Build signed App Bundle
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          flutter pub get
+          flutter build appbundle --release \
+            --build-name="0.0.${{ steps.version.outputs.version_code }}" \
+            --build-number="${{ steps.version.outputs.version_code }}"
+
+      - name: Remove upload keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-keystore.jks"
+
+      - name: Attach App Bundle to draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.version.outputs.tag }}" build/app/outputs/bundle/release/app-release.aab --clobber
