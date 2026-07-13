@@ -9,6 +9,8 @@ void showInfoBottomSheet(
   required Color color,
   required String title,
   required String description,
+  String? actionLabel,
+  VoidCallback? onAction,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -46,12 +48,30 @@ void showInfoBottomSheet(
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
+              if (actionLabel != null && onAction != null) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      onAction();
+                    },
+                    child: Text(actionLabel),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               SizedBox(
                 width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(sheetContext),
-                  child: const Text('閉じる'),
-                ),
+                child: actionLabel != null && onAction != null
+                    ? OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        child: const Text('閉じる'),
+                      )
+                    : FilledButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        child: const Text('閉じる'),
+                      ),
               ),
             ],
           ),

@@ -41,23 +41,21 @@ class TruthJudgmentSection extends ConsumerWidget {
       error: (error, stackTrace) => const SizedBox.shrink(),
       data: (request) {
         if (request == null) {
-          // リクエスト未起票: ボタン自体は常時表示し、Create権限（上位25%以上）を
-          // 持たないユーザーには非活性状態で表示する。タップ時は理由を説明するダイアログを出す。
+          // リクエスト未起票: 3.12節のいいね・コメントと同様、アイコンのみのボタンを常時表示する。
+          // Create権限（上位25%以上）を持たないユーザーには非活性色で表示する。タップすると
+          // 権限の有無に関わらずまず説明・確認ダイアログを開く（3.4節）。
           final canRequest = isTopTier && currentUser != null;
           return Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: OutlinedButton.icon(
-              onPressed: canRequest
-                  ? () => _requestJudgment(context, ref)
-                  : () => _showIneligibleDialog(context, currentUser == null),
-              style: canRequest
-                  ? null
-                  : OutlinedButton.styleFrom(
-                      foregroundColor: Theme.of(context).disabledColor,
-                      side: BorderSide(color: Theme.of(context).disabledColor),
-                    ),
-              icon: const Icon(Icons.gavel_outlined, size: 16),
-              label: const Text('真偽審判リクエスト'),
+            child: IconButton(
+              onPressed: () => _showJudgmentRequestDialog(context, ref, canRequest, currentUser == null),
+              icon: Icon(
+                Icons.gavel_outlined,
+                size: 20,
+                color: canRequest ? null : Theme.of(context).disabledColor,
+              ),
+              tooltip: '真偽審判リクエスト',
+              visualDensity: VisualDensity.compact,
             ),
           );
         }
@@ -74,22 +72,44 @@ class TruthJudgmentSection extends ConsumerWidget {
     );
   }
 
-  Future<void> _showIneligibleDialog(BuildContext context, bool notLoggedIn) async {
+  /// design/product.md 3.4節。アイコンタップ時、権限の有無に関わらずまず真偽審判リクエストの
+  /// 説明ダイアログを開く。Create権限保持者にのみ実行ボタンを表示し、それ以外は理由のみ表示する。
+  Future<void> _showJudgmentRequestDialog(
+    BuildContext context,
+    WidgetRef ref,
+    bool canRequest,
+    bool notLoggedIn,
+  ) async {
+    const explanation =
+        '真偽審判リクエストは、投稿の真偽を上位ユーザーの投票にかける機能です。'
+        'リクエストすると、投稿者本人と同格以上の知能階層のユーザーが「本当」「嘘」に投票し、'
+        '24時間後に多数決で真偽が確定します。';
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('真偽審判リクエストはできません'),
+        title: const Text('真偽審判リクエスト'),
         content: Text(
-          notLoggedIn
-              ? 'ログインすると利用できる機能です。'
-              : '真偽審判リクエストは、知能スコア上位25%以上のCreate権限保持者のみが起票できます。'
-                    'クイズに挑戦してIntellect Scoreを上げると、Create権限を獲得できます。',
+          canRequest
+              ? explanation
+              : notLoggedIn
+                  ? '$explanation\n\nログインすると利用できる機能です。'
+                  : '$explanation\n\n起票は、知能スコア上位25%以上のCreate権限保持者のみが行えます。'
+                        'クイズに挑戦してIntellect Scoreを上げると、Create権限を獲得できます。',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('閉じる'),
           ),
+          if (canRequest)
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _requestJudgment(context, ref);
+              },
+              child: const Text('リクエストする'),
+            ),
         ],
       ),
     );
@@ -395,6 +415,28 @@ class _VoteControls extends ConsumerWidget {
   }
 }
 
+/// design/product.md 3.4.3節。チケット購入前に必ず確認ダイアログを挟み、誤タップによる
+/// 意図しないTP消費を防ぐ（購入枚数・消費TPを明示する）。
+Future<bool?> _confirmTicketPurchase(BuildContext context, int count) {
+  return showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('チケットを購入しますか？'),
+      content: Text('投票権チケット $count枚を ${count * 100} TPで購入します。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('購入する'),
+        ),
+      ],
+    ),
+  );
+}
+
 /// design/product.md 3.4.3節「投票権チケット」エコノミー。一般ユーザー向けのチケット購入
 /// ボトムシート（1枚=100TP）。
 Future<void> showTicketShopSheet(BuildContext context, WidgetRef ref) async {
@@ -420,6 +462,8 @@ Future<void> showTicketShopSheet(BuildContext context, WidgetRef ref) async {
                 title: Text('$count枚（${count * 100} TP）'),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
+                  final confirmed = await _confirmTicketPurchase(context, count);
+                  if (confirmed != true || !context.mounted) return;
                   final messenger = ScaffoldMessenger.of(context);
                   try {
                     await ref.read(discoverControllerProvider).purchaseTickets(ticketCount: count);

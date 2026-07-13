@@ -9,6 +9,7 @@ import '../../shared/info_bottom_sheet.dart';
 import '../../shared/iq_format.dart';
 import '../../shared/score_format.dart';
 import '../discover/discover_controller.dart' show ticketCountProvider;
+import '../discover/truth_judgment_section.dart' show showTicketShopSheet;
 import '../feed/fullscreen_media_viewer.dart';
 import '../feed/intellect_badge.dart';
 import '../messages/messages_controller.dart';
@@ -571,6 +572,8 @@ class _SignedInProfileView extends ConsumerWidget {
             description: '真偽投票（3.4節）に参加するために1票につき1枚消費するアイテムです。'
                 '知能スコア上位25%/上位5%のユーザーには毎日無料で3枚配布されます。'
                 'それ以外のユーザーは100TPで1枚購入できます。',
+            actionLabel: 'TPで購入する',
+            onAction: () => showTicketShopSheet(context, ref),
           ),
           child: Chip(
             label: Text('チケット $ticketCount枚'),
