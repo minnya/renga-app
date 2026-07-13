@@ -11,21 +11,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Parse version code from release tag (v0.0.N)
-        id: version
-        run: |
-          TAG="${{ github.event.release.tag_name }}"
-          CODE="${TAG#v0.0.}"
-          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+      - name: Download App Bundle attached to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ github.event.release.tag_name }}" -R "${{ github.repository }}" -p "app-release.aab"
 
       - name: Write Play Store release notes (whatsnew)
         env:
@@ -37,44 +26,11 @@ jobs:
             | cut -c1-500 \
             > android/whatsnew/whatsnew-ja-JP
 
-      - name: Write .env
-        run: |
-          cat > .env <<EOF
-          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-          GOOGLE_OAUTH_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
-          FLUTTER_APP_ENV=prod
-          EOF
-
-      - name: Restore upload keystore
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
-
-      - name: Build signed App Bundle
-        env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          flutter pub get
-          flutter build appbundle --release \
-            --build-name="0.0.${{ steps.version.outputs.code }}" \
-            --build-number="${{ steps.version.outputs.code }}"
-
-      - name: Remove upload keystore
-        if: always()
-        run: rm -f "$RUNNER_TEMP/upload-keystore.jks"
-
-      - name: Attach App Bundle to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" build/app/outputs/bundle/release/app-release.aab --clobber
-
       - name: Deploy to Google Play (production track)
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.minnya.renga
-          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          releaseFiles: app-release.aab
           track: production
           whatsNewDirectory: android/whatsnew

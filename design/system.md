@@ -955,26 +955,29 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
 
 ```
 [production へのマージ] → create_gh_release_draft.yml
-   ├─ 既存のGitHub Release一覧から `v0.0.N` 形式のタグの最大値Nを取得し、N+1をバージョン
+   ├─ 1. 既存のGitHub Release一覧から `v0.0.N` 形式のタグの最大値Nを取得し、N+1をバージョン
    │     （タグ・タイトルとも `v0.0.<N+1>`）として採番する（pubspec.yamlの値やrun_numberには
    │     依存しない。v0.0.1から開始）
-   └─ GitHubの generate_release_notes 機能でマージ済みPR群からリリースノートを自動生成し、
-      GitHub Release の下書き（Draft）を作成する
-
-[人間が下書きを確認・編集し、Release を Publish] → deploy_to_play_store.yml
-   ├─ 1. Releaseのタグ名 `v0.0.N` からNを抽出し、Android の versionCode（`--build-number`）・
-   │     versionName（`--build-name=0.0.N`）としてそのまま流用する
-   ├─ 2. gh release view で公開時点の確定リリースノートを取得し、Playストアの文字数制限（500文字）
-   │     に収まるよう整形して android/whatsnew/whatsnew-ja-JP に書き出す
-   ├─ 2.5. GitHub Secrets（SUPABASE_URL / SUPABASE_ANON_KEY / GOOGLE_OAUTH_CLIENT_ID）から
+   ├─ 2. GitHubの generate_release_notes 機能でマージ済みPR群からリリースノートを自動生成し、
+   │     GitHub Release の下書き（Draft）を作成する
+   ├─ 3. GitHub Secrets（SUPABASE_URL / SUPABASE_ANON_KEY / GOOGLE_OAUTH_CLIENT_ID）から
    │     .env をCIワークスペース内に生成する（pubspec.yamlのassetとして必須、かつ
    │     アプリ起動時にSUPABASE_URL/SUPABASE_ANON_KEYが無いと例外を投げるため必須）
-   ├─ 3. GitHub Secrets の ANDROID_KEYSTORE_BASE64 をデコードし、CIワークスペース内に
+   ├─ 4. GitHub Secrets の ANDROID_KEYSTORE_BASE64 をデコードし、CIワークスペース内に
    │     upload-keystore.jks を一時復元する（ジョブ終了後は使い捨て、リポジトリには残さない）
-   ├─ 4. ANDROID_KEYSTORE_PATH / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS /
-   │     ANDROID_KEY_PASSWORD を環境変数として注入し、flutter build appbundle --release を実行
-   ├─ 5. 生成した .aab を対象の GitHub Release に成果物として添付
-   └─ 6. r0adkll/upload-google-play アクションで .aab とリリースノートを
+   ├─ 5. Nをversion_code（--build-number）・version_name（--build-name=0.0.N）として
+   │     flutter build appbundle --release を実行する
+   └─ 6. 生成した .aab をこの時点で下書きReleaseへ成果物として添付する
+         （＝下書きの時点で人が実機バイナリをダウンロード・確認・手動でPlay Consoleへ
+         アップロードすることも可能にする）
+
+[人間が下書きを確認・編集し、Release を Publish] → deploy_to_play_store.yml
+   ├─ 1. 対象ReleaseにすでにDraft作成時点で添付済みの .aab をダウンロードする
+   │     （再ビルドはしない。ビルド後にリリースノートだけ後から編集しても、配信される
+   │     バイナリはDraft時点で人が確認できたものと完全に一致する）
+   ├─ 2. gh release view で公開時点の確定リリースノートを取得し、Playストアの文字数制限（500文字）
+   │     に収まるよう整形して android/whatsnew/whatsnew-ja-JP に書き出す
+   └─ 3. r0adkll/upload-google-play アクションで .aab とリリースノートを
          Google Play の production トラックへアップロード
 ```
 
