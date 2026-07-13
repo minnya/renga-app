@@ -1,0 +1,37 @@
+Renga (連歌) is a next-generation social app built on a simple idea: influence and intelligence are not the same thing, and your feed should show you both.
+
+Every other social network ranks you by one number — followers, likes, views. That single "Influence" score is exactly why misinformation and shouting matches win: the loudest account, not the most correct one, rises to the top. Renga adds a second axis.
+
+TWO SCORES, ONE HEALTHIER FEED
+• Influence — the familiar metric: followers, reposts, reach.
+• Intellect — a quality score built from short logic quizzes, your track record on fact-checks, and endorsements from other high-Intellect users.
+
+Plotting both together means a small account with sharp reasoning can outrank a huge account with sloppy takes — and it means loud accounts can't hide behind follower counts alone.
+
+A FEED FOR EVERYONE, A LOUNGE FOR THE SHARPEST
+• Feed — open to all. Post, reply, repost, and scroll a lively public timeline, just like the social apps you already know.
+• Discover — a quieter space where only users in the top 25% by Intellect can post and start fact-checks, so the signal-to-noise ratio stays high. Everyone can read it; only the vetted can add to it.
+• A one-tap Layer Filter lets you view any timeline as "Everyone," "Top 25%," or "Top 5%" — see the conversation the way you want to see it.
+
+TRUTH VOTES, NOT TAKEDOWNS
+Instead of moderators unilaterally slapping a "false" label on a post, Renga lets qualified users open a Truth Vote on any claim that looks suspicious. During voting, the current tally stays hidden so nobody just piles onto the "winning" side — everyone has to actually judge the claim on its merits. When the vote closes, the result appears as a simple green/red meter right on the post: instant, visual, and driven by the community's best reasoners rather than a faceless algorithm.
+
+THOUGHT POWER: BUILT ON YOUR THINKING, NOT YOUR WALLET
+Answer quick daily logic puzzles to build Thought Power (TP), Renga's in-app currency. Use TP to post, boost a great take from the everyday Feed into the curated Discover lounge, or unlock cosmetic profile flair. TP is a virtual point system only — it has no cash value and cannot be purchased for real-world winnings. Some of the app's rarest cosmetics are reserved for users who earn and hold a high Intellect rank, so status stays meaningful even if you also top up TP along the way.
+
+BADGES THAT ONLY EVER ADD UP
+Reach the top 25 / 10 / 5 / 1% and you'll see a badge on your profile — there is no "low score" label, no public shaming, and no visible penalty tier. Renga is designed to reward good thinking, never to humiliate anyone.
+
+EVERYTHING ELSE YOU'D EXPECT FROM A MODERN SOCIAL APP
+• Share photos and multi-photo posts, upload video with smooth adaptive streaming, or drop in a YouTube link for an instant inline player.
+• Like, comment (with threaded replies and media), repost, or quote-repost — all the essentials, presented with a clean, familiar action bar.
+• Direct messages with real-time delivery, read receipts, and one-tap translation for cross-language conversations.
+• Automatic translation on posts and messages written in a different language than your display language.
+• Every post, video, and profile has a one-tap report button, and uploads pass through automated safety screening before and after they go live.
+
+A GLOBAL APP, BUILT BILINGUAL FROM DAY ONE
+Renga ships in English and Japanese, with the interface following your device language automatically.
+
+Renga is free to download and supports ads to keep it that way. No subscription is required to participate, vote, or climb the Intellect ranks.
+
+Join Renga and help build a feed where good arguments — not just big followings — get the last word.

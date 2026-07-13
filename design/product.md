@@ -699,13 +699,14 @@ Renga（連歌）のブランドコンセプトに沿い、「連なる句／連
 
 - `assets/icon/renga_icon_1024.png` — フル背景込みアイコン（iOS用）
 - `assets/icon/renga_icon_background_1024.png` / `renga_icon_foreground_1024.png` — Android Adaptive Icon 背景/前景レイヤー
+- `assets/store/listing/app_icon_512.png` — Play Console「アプリアイコン」欄向けの512×512書き出し（上記1024px版からのリサイズ、本番ブランディングそのまま）
 
 ### ストア掲載情報
 
 - **既定言語**: English (en-US)。日本語 (ja-JP) を追加ローカライズとして登録。
 - **アプリタイトル**: Renga
-- **短い説明**（EN）: 例）"Connect through intellect — the next-gen social app where logic beats noise."
-- **詳しい説明**（EN）: 本設計書「1. プロダクトコンセプト」「3. 機能要件一覧」を要約した平易な英語コピー。誇大な医療・収益断定表現は避け、Playポリシー（ギャンブル/賭博規制、誤解を招く表現の禁止）に抵触しない文言にする（TPが換金不可の内部ポイントである旨を明記）。日本語版は翻訳として別途用意。
+- **短い説明**（EN、80文字以内）: 確定版を `assets/store/listing/short_description_en.txt` に格納済み。
+- **詳しい説明**（EN、4000文字以内）: 本設計書「1. プロダクトコンセプト」「3. 機能要件一覧」を要約した平易な英語コピーを `assets/store/listing/full_description_en.txt` に格納済み。誇大な医療・収益断定表現は避け、Playポリシー（ギャンブル/賭博規制、誤解を招く表現の禁止）に抵触しない文言にする（TPが換金不可の内部ポイントである旨を明記）。日本語版は翻訳として別途用意（未作成）。
 - **カテゴリ**: Social
 - **コンテンツレーティング**: 論破・対立煽りの要素、ユーザー生成コンテンツ（画像/動画/通報制度あり）を踏まえ、**Mature 17+ / 18+ 相当**を想定してIARCアンケートに回答する。
 - **利用規約 / プライバシーポリシーURL**: GitHub Pages（リポジトリ `docs/` フォルダをソースに設定）でホスティングする。
@@ -725,6 +726,12 @@ Renga（連歌）のブランドコンセプトに沿い、「連なる句／連
 - `assets/store/feature_graphic_1024x500.png` — Play Store フィーチャーグラフィックの仮版
 
 いずれも「PLACEHOLDER MOCKUP」の透かしを明示的に入れており、そのままストア申請には使用不可。実装後、同じレイアウト意図が伝わる構図で実機キャプチャに置き換える。
+
+**Play Console提出用サイズの英語版仮スクリーンショットも生成済み**（同じくPLACEHOLDER MOCKUP、`assets/store/listing/generate_screenshots.py`で再生成可能。Feed/Discoverの真偽投票メーター/Profile/デイリークイズの4カットで統一）:
+
+- `assets/store/screenshots_en/phone/` — 1080×1920（9:16、電話用）
+- `assets/store/screenshots_en/tablet_7in/` — 1200×1920（9:16、7インチタブレット用）
+- `assets/store/screenshots_en/tablet_10in/` — 1600×2560（9:16、10インチタブレット用）
 
 ### ランディングページ（GitHub Pages）
 
