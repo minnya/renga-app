@@ -31,7 +31,7 @@
   "intellect_badge_top10_description": "You are in the top 10% for Intellect score. Your consistent quiz performance demonstrates strong logical thinking.",
   "intellect_badge_top5_description": "You are in the top 5% for Intellect score. You possess advanced logical reasoning and critical thinking abilities.",
   "intellect_badge_top1_description": "You are in the top 1% for Intellect score. You are among the highest-level logical thinkers in the information space.",
-  "feedStakedTpLabel": "Staked TP: {amount}",
+  "feedStakedTpLabel": "TP spent: {amount}",
   "@feedStakedTpLabel": {
     "placeholders": {
       "amount": {
@@ -340,14 +340,14 @@
     }
   },
   "composeNormalModeLabel": "Normal post",
-  "composeStakedModeLabel": "Staked post",
+  "composeStakedModeLabel": "TP-spend post",
   "composePickVideoButton": "Choose video",
-  "composeStakedTpLabel": "TP to stake",
+  "composeStakedTpLabel": "TP to spend",
   "composeStakedTpHelper": "You must answer every question correctly in the unlock quiz before posting",
   "composeStakedEmptyError": "Please enter some text",
-  "composeStakedInvalidTpError": "Enter a stake amount of 1 or more",
+  "composeStakedInvalidTpError": "Enter an amount of 1 or more",
   "composeStakedLockFailedError": "Your post was blocked because you didn't pass the unlock quiz",
-  "composeStakedSubmitError": "Failed to create staked post: {error}",
+  "composeStakedSubmitError": "Failed to create post: {error}",
   "@composeStakedSubmitError": {
     "placeholders": {
       "error": {
@@ -369,8 +369,8 @@
       }
     }
   },
-  "lockQuizPassedMessage": "Unlocked. You can continue with your staked post.",
-  "lockQuizFailedMessage": "Your staked post was blocked because you didn't answer every question correctly.",
+  "lockQuizPassedMessage": "Unlocked. You can continue with your post.",
+  "lockQuizFailedMessage": "Your post was blocked because you didn't answer every question correctly.",
   "lockQuizContinueButton": "Continue to post",
   "lockQuizCloseButton": "Close",
 

@@ -9,7 +9,6 @@ import 'discover_compose_sheet.dart';
 import 'discover_controller.dart';
 import 'domain_post.dart';
 import 'domain_score.dart';
-import 'truth_judgment_section.dart';
 
 /// design/product.md 4章「Discover（専門家発掘・ドメイン別ランキング）」画面。
 ///
@@ -130,19 +129,9 @@ class DiscoverPage extends ConsumerWidget {
                           margin: const EdgeInsets.only(bottom: 8),
                           child: Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                PostTile(post: post),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  child: TruthJudgmentSection(
-                                    postId: post.id,
-                                    postAuthorId: post.authorId,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            // design/product.md 3.4節。真偽投票UIはPostTile内に統合済みのため、
+                            // ここでは個別に描画しない。
+                            child: PostTile(post: post),
                           ),
                         );
                       }).toList();

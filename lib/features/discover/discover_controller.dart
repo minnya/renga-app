@@ -196,6 +196,29 @@ final myTruthVoteProvider =
   return row == null ? null : TruthVote.fromMap(row);
 });
 
+/// design/product.md 3.4.4節「2階建てインテリジェンス・メーター」。指定リクエストの全投票
+/// （Top5%/Top25%の階層別内訳表示に使う）。`truth_votes`は誰でもselect可能なRLSのため、
+/// 未ログインでも取得できるが、UI側はブラインド投票フェーズ中（3.4.2節）は自分が投票する
+/// までこの結果を比率として見せない。
+final allTruthVotesProvider =
+    FutureProvider.family<List<TruthVote>, String>((ref, requestId) async {
+  final rows = await supabase.from('truth_votes').select().eq('request_id', requestId);
+  return rows.map((row) => TruthVote.fromMap(row)).toList();
+});
+
+/// design/product.md 3.4.3節「投票権チケット」エコノミー。ログイン中ユーザーの保有チケット枚数。
+/// `user_assets`は自分の行のみselect可能なRLSのため、行が存在しない場合は0枚として扱う。
+final ticketCountProvider = FutureProvider<int>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return 0;
+  final row = await supabase
+      .from('user_assets')
+      .select('ticket_count')
+      .eq('user_id', user.id)
+      .maybeSingle();
+  return (row?['ticket_count'] as int?) ?? 0;
+});
+
 /// Discover画面のCreate投稿・真偽審判リクエスト・Feed→Discover引き上げをまとめて扱う
 /// コントローラー。実際の権限・残高チェックはすべてRPC側（migration参照）で行われるため、
 /// ここではRPC呼び出しと関連Providerのinvalidateのみを担う。
@@ -232,20 +255,30 @@ class DiscoverController {
     ref.invalidate(truthJudgmentRequestProvider(postId));
   }
 
-  /// design/product.md 3.4節「投票」。投票資格（上位25%かつ投稿者本人と同格以上・自己投票不可）は
+  /// design/product.md 3.4.2節「投票」。投票権チケットを1枚消費する（TP増減は発生しない）。
+  /// 投票資格（上位25%かつ投稿者本人と同格以上・自己投票不可）とチケット保有は
   /// `cast_truth_vote` RPC側で検証され、違反時は例外（`PostgrestException.message`が日本語）を返す。
   Future<void> castTruthVote({
     required String requestId,
     required String postId,
     required bool verdict,
-    required num stakedTp,
   }) async {
     await supabase.rpc(
       'cast_truth_vote',
-      params: {'p_request_id': requestId, 'p_verdict': verdict, 'p_staked_tp': stakedTp},
+      params: {'p_request_id': requestId, 'p_verdict': verdict},
     );
     ref.invalidate(truthJudgmentRequestProvider(postId));
     ref.invalidate(myTruthVoteProvider(requestId));
+    ref.invalidate(allTruthVotesProvider(requestId));
+    ref.invalidate(ticketCountProvider);
+  }
+
+  /// design/product.md 3.4.3節「投票権チケット」エコノミー。一般ユーザー（Top25%未満）が
+  /// 1枚＝100TPでチケットを購入する。上位ユーザーへのデイリー無料配布は`grant_daily_tickets`
+  /// （pg_cron経由、サーバー側のみ）が担うため、クライアントからは呼び出さない。
+  Future<void> purchaseTickets({required int ticketCount}) async {
+    await supabase.rpc('purchase_tickets', params: {'p_ticket_count': ticketCount});
+    ref.invalidate(ticketCountProvider);
   }
 }
 

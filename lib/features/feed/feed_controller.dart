@@ -366,7 +366,7 @@ class FeedController {
     return postId;
   }
 
-  /// design/product.md 3.4節「ステーキング・ツイート: 投稿時にTPを賭ける」。
+  /// design/product.md 3.4節「TP消費投稿: 投稿時にTPを消費する」。
   /// design/system.md 7章のロック解除クイズ通過が前提。TPの減算と投稿作成を
   /// `create_staked_post` RPC（`supabase/migrations/*_add_staking_functions.sql`）内で
   /// アトミックに行い、残高不足時はDB側の例外で投稿をブロックする。

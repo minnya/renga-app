@@ -184,7 +184,9 @@ create table public.endorsements (
 -- 「Create権限保持者によるオプトイン型の真偽投票」1本に統合した後継テーブル）。
 -- 投稿には既定で真偽投票UIを一切表示せず、`Create`権限保持者（上位25%以上）がこのリクエストを
 -- 起票した投稿のみ、真偽投票（truth_votes）が可能になる（product.md 2.1節・3.4節）。
--- 投票参加資格はさらに「投稿者本人と同格以上の知能階層」に絞られる（下記truth_votes参照）。
+-- Feed/Discover双方のcontextの投稿を対象にできる（旧設計ではcontext='discover'限定だったが解禁した）。
+-- 投票参加資格はさらに「投稿者本人と同格以上の知能階層」に絞られるが、リクエスト起票者本人
+-- （requested_by）はこの制限を免除され、常に自分が起票した投票に参加できる（下記truth_votes参照）。
 create table public.truth_judgment_requests (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references public.posts(id) on delete cascade,
@@ -203,29 +205,49 @@ create table public.truth_judgment_requests (
   created_at timestamptz not null default now(),
   unique (post_id) -- 1投稿につきリクエストは1回のみ（再リクエスト不可。誤操作防止）
 );
--- RLS: select全公開。insertは`Create`権限保持者（intellect_percentile <= 25 相当、RLS内で`profiles`参照）のみ、
--- かつ対象postがcontext='discover'の場合のみ許可。update/deleteはEdge Function（service role）のみ。
+-- RLS: select全公開。insertは`Create`権限保持者（intellect_percentile <= 25 相当、RLS内で`profiles`参照）
+-- のみ許可（対象postのcontextは問わない、Feed/Discover双方許可）。update/deleteはEdge Function
+-- （service role）のみ。
 
--- 真偽投票（TPベット）
+-- 真偽投票（投票権チケット消費、product.md 3.4.2節〜3.4.3節）。
+-- 直接TPを賭け合うP2Pの賭博構造を避けるため、投票はTPではなく「投票権チケット」を1枚消費する
+-- （チケット自体はuser_assets.ticket_countで管理し、tp_transactionsにはチケット消費の記録を残さない）。
 create table public.truth_votes (
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null references public.truth_judgment_requests(id) on delete cascade,
   user_id uuid not null references public.profiles(id),
   verdict boolean not null, -- true=本当, false=嘘
-  staked_tp numeric not null,
-  payout_tp numeric, -- 確定後に反映。的中: staked_tp*2相当をtp_transactionsで別途付与（原資分離、product.md 3.4節）。外れ: 0（没収）。無効: staked_tpそのまま返還
+  voter_tier text not null, -- 'top5' | 'top25'（投票時点のintellect_percentileから判定し、product.md 3.4.4節の2階建てメーター集計に使う）
+  payout_tp numeric, -- 確定後に反映。的中: product.md 3.4.3節の数理式に基づく山分けボーナスをtp_transactionsで別途新規発行（原資分離）。外れ: 0（チケットは全損・返還なし）。無効: チケットのみ返還
   created_at timestamptz not null default now(),
   unique (request_id, user_id) -- 1リクエストにつき1ユーザー1票（撤回不可、変更不可）
 );
--- RLS: select全公開。insertは以下すべてを満たす場合のみ許可:
+-- RLS: select全公開（ただし4章のブラインド投票フェーズ中は、クライアント側で自分の投票以外の
+--   verdict内訳をUI上マスクし、「総票数」のみ見せる。締切/自分の投票完了後にアンロックする）。
+--   insertは以下すべてを満たす場合のみ許可（cast_truth_vote RPC内で検証）:
 --   (1) is_top_intellect_tier(auth.uid())（Create権限、上位25%以上）
 --   (2) profiles.intellect_percentile <= truth_judgment_requests.author_intellect_percentile_snapshot
---       （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）
+--       （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）。ただし
+--       auth.uid() = truth_judgment_requests.requested_by（リクエスト起票者本人）の場合はこの
+--       階層チェックを免除する（起票者本人は常に自分の起票した投票に参加できる）
 --   (3) 対象request.status='voting'かつcloses_at未到達
 --   (4) auth.uid() <> 対象postのauthor_id（投稿者本人による自己投票（自演）を禁止。利益相反防止）
+--   (5) user_assets.ticket_count > 0（チケット保有）— insert時のRPC（cast_truth_vote）内で
+--       ticket_countを-1するトランザクションと不可分に実行する
 -- update/deleteは不可（撤回不可の要件を素朴にDBレベルでも担保する）。
 
--- ドメイン別専門スコア
+-- ユーザー資産（TP残高・投票権チケット枚数を一元管理、product.md 3.4.5節）。
+-- チケット仲介方式の要。真偽投票時はticket_countを-1するだけで完結させ、ユーザー間のTP移転を発生させない。
+create table public.user_assets (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  tp_balance numeric not null default 0, -- profiles.tp_balanceは段階的にこちらへ一本化（過渡期は同期）
+  ticket_count int not null default 0,
+  last_daily_ticket_granted_at date, -- Top 25%/Top 5%への「毎日無料チケット3枚」デイリーボーナスの多重付与防止（UTC日付ベース）
+  updated_at timestamptz not null default now()
+);
+-- RLS: selectは自分の行のみ。insert/updateはEdge Function（service role）のみ。
+
+-- ドメイン別専門スコア（product.md 3.4.1節「投稿しない隠れた賢者」の自動ドメイン抽出ロジック）。
 create table public.domain_scores (
   user_id uuid not null references public.profiles(id),
   domain text not null,
@@ -234,6 +256,19 @@ create table public.domain_scores (
   updated_at timestamptz not null default now(),
   primary key (user_id, domain)
 );
+-- 上記`domain_scores`は3.5節のEndorse実績由来の専門スコア。真偽投票の的中実績から逆算する
+-- 「投稿しない賢者」向けの加点は`user_domain_scores`（下記、投票ログ由来）に分離して二重計上を避ける。
+create table public.user_domain_scores (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  domain text not null,
+  correct_vote_streak int not null default 0, -- そのドメインの投稿に対する真偽投票で、多数決（正解側）と一致し続けている連勝数
+  correct_vote_total int not null default 0,
+  promoted_to_domain_expert boolean not null default false, -- 一定基準（Remote Config）超過でtrueにし、そのドメインではTop 5%相当の重み付けを与える
+  updated_at timestamptz not null default now(),
+  primary key (user_id, domain)
+);
+-- 締切精算（resolve_truth_judgments）の一部として、的中投票者について対象投稿のドメインラベル
+-- （posts.domain_labels）ごとにcorrect_vote_streakを加算し、閾値到達でpromoted_to_domain_expertをtrueにする。
 
 -- Influence/Intellectの日次スナップショット（プロフィール画面の推移グラフ・前日比表示用、2章参照）。
 -- `recalculate_intellect_scores`/`recalculate_influence_scores` で更新された profiles の値を
@@ -341,10 +376,12 @@ create table public.tp_transactions (
   user_id uuid not null references public.profiles(id),
   amount numeric not null, -- 正=獲得、負=消費/没収
   reason text not null,
-  -- 例: quiz_daily_reward | quiz_onboarding_reward | truth_vote_stake | truth_vote_payout |
-  --     truth_vote_forfeit | truth_vote_refund | staked_post | discover_post_cost |
+  -- 例: quiz_daily_reward | quiz_onboarding_reward | truth_vote_ticket_purchase |
+  --     truth_vote_payout（山分けボーナス、新規発行） | staked_post | discover_post_cost |
   --     discover_promotion_cost | discover_scout_reward | comment_slot_auction |
   --     cosmetic_purchase | tp_purchase（課金）
+  -- 備考: 投票権チケットの消費・返還・失効自体はTP増減を伴わないため、tp_transactionsには
+  --     記録しない（user_assets.ticket_countの増減のみで完結させる。product.md 3.4.5節）。
   ref_type text, -- post | truth_judgment_request | truth_vote | discover_promotion 等（監査時の参照用）
   ref_id uuid,
   balance_after numeric not null, -- 記帳直後の残高スナップショット（監査・不正検知の突合を容易にする）
@@ -479,7 +516,7 @@ Edge Functionsは「イベント発生時（Endorse獲得、バッジ実績解�
 
 ### Remote Configの利用方針
 
-- キー例: `daily_quiz_count`, `lock_quiz_question_count`, `strike_thresholds`（例: `[1,3,5]`、7章）, `truth_judgment_window_hours`（例: 48）, `truth_judgment_quorum`（例: 10）, `default_layer_filter`, `feature_expert_discovery_enabled`, `ads_enabled`。
+- キー例: `daily_quiz_count`, `lock_quiz_question_count`, `strike_thresholds`（例: `[1,3,5]`、7章）, `truth_judgment_window_hours`（例: 48）, `truth_judgment_quorum`（例: 10）, `ticket_tp_price`（例: 100）, `ticket_bulk_discount_tiers`, `daily_free_ticket_count`（例: 3、Top 25%/Top 5%向け）, `domain_expert_vote_streak_threshold`（product.md 3.4.1節）, `default_layer_filter`, `feature_expert_discovery_enabled`, `ads_enabled`。
 - Remote Configの値は「クライアント側の表示・UX調整」に限定し、金銭・スコアに関わる**信頼できる計算はEdge Function/DB側に必ず二重で持たせる**（クライアント改ざん対策）。
 - Firebase CLIでテンプレート（`remoteconfig.template.json`）をバージョン管理し、`firebase deploy --only remoteconfig` でデプロイする。
 
@@ -566,7 +603,7 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
    └─ posts.domain_labels に反映（信頼度が閾値未満の場合はラベル付与を見送る）
 ```
 
-- 全投稿ではなく、一定文字数以上・シリアス投稿（ステーキング投稿）を優先して実行し、API呼び出し回数を抑制する（12章）。
+- 全投稿ではなく、一定文字数以上・シリアス投稿（TP消費投稿）を優先して実行し、API呼び出し回数を抑制する（12章）。
 - 出力はJSON形式で厳密にスキーマ指定し、パース失敗時はラベル付与をスキップして処理を継続する。
 
 ### 6.2 クイズ自動生成 + マルチエージェント検証パイプライン
@@ -646,9 +683,17 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
 ```
 [Discover投稿詳細画面]
    │
+   ├─ 0. チケット取得（Edge Function: purchase_tickets / grant_daily_tickets）
+   │      ├─ purchase_tickets: 一般ユーザーがTPでチケットを購入（1枚=100TP、まとめ買い割引はRemote
+   │      │  Config `ticket_bulk_discount_tiers` で管理）。user_assets.tp_balanceを減算し
+   │      │  ticket_countを加算、tp_transactions(reason='truth_vote_ticket_purchase')を記録
+   │      └─ grant_daily_tickets: is_top_intellect_tier(auth.uid())のユーザーに対し、UTC日次で
+   │         user_assets.last_daily_ticket_granted_at未更新なら+3枚を付与（pg_cronで日次実行、
+   │         多重付与はlast_daily_ticket_granted_atのユニーク日付チェックで防止）
+   │
    ├─ 1. リクエスト起票（Edge Function: request_truth_judgment）
-   │      ├─ 呼び出し元が is_top_intellect_tier(auth.uid()) であること、
-   │      │  対象postが context='discover' であることをEdge Function側でも再検証（RLSと二重チェック）
+   │      ├─ 呼び出し元が is_top_intellect_tier(auth.uid()) であることを検証
+   │      │  （対象postのcontextはfeed/discoverいずれでも可。旧設計のdiscover限定は解禁済み）
    │      ├─ truth_judgment_requests に1行insert
    │      │  （author_intellect_percentile_snapshot=対象投稿者の現在のintellect_percentileをコピー、
    │      │   opens_at=now(), closes_at=now()+Remote Config `truth_judgment_window_hours`,
@@ -658,27 +703,37 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
    ├─ 2. 投票（Edge Function: cast_truth_vote）
    │      ├─ is_top_intellect_tier(auth.uid())、request.status='voting'、closes_at未到達を検証
    │      ├─ profiles.intellect_percentile <= request.author_intellect_percentile_snapshot
-   │      │  （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）を検証
-   │      ├─ profiles.tp_balance から staked_tp を減算 + tp_transactions
-   │      │  (reason='truth_vote_stake', amount=-staked_tp) を同一トランザクションで記録
-   │      └─ truth_votes に1行insert（unique制約で1人1票を担保）
+   │      │  （投稿者本人と同格以上の知能階層のみ投票可、product.md 3.4節）を検証。ただし
+   │      │  auth.uid() = request.requested_by（起票者本人）の場合はこの階層チェックを免除する
+   │      ├─ user_assets.ticket_count > 0 を検証し、同一トランザクションでticket_countを-1
+   │      │  （TP増減は発生しない。product.md 3.4.5節「チケット仲介方式」）
+   │      ├─ voter_tier を投票時点のintellect_percentileから 'top5' | 'top25' に判定して記録
+   │      │  （product.md 3.4.4節の2階建てメーター集計に使用）
+   │      └─ truth_votes に1行insert（unique制約で1人1票を担保）。クライアント側は自分の投票が
+   │         成立した直後にのみブラインド（モザイク）を解除して比率を表示する（product.md 3.4.2節）
    │
-   └─ 3. 締切精算（Scheduled Function: resolve_truth_judgment、5〜10分毎のpg_cronでcloses_at超過分をポーリング）
-          ├─ true_vote_count / false_vote_count を集計しrequestsへ書き込み
+   └─ 3. 締切精算（Scheduled Function: resolve_truth_judgments、5〜10分毎のpg_cronでcloses_at超過分をポーリング）
+          ├─ true_vote_count / false_vote_count（tier別内訳含む）を集計しrequestsへ書き込み
           ├─ 合計投票数 < quorum_threshold の場合:
-          │    status='invalid'、resolved_verdict=null。全投票者へ staked_tp をそのまま返還
-          │    （tp_transactions: reason='truth_vote_refund'）
+          │    status='invalid'、resolved_verdict=null。全投票者へ消費チケットをticket_count+1で返還
+          │    （TP側の記録は発生しない）
           └─ quorum達成の場合:
                resolved_verdict = (true_vote_count > false_vote_count)
                status='resolved'、posts.truth_verdict を更新
-               的中側: tp_transactions に reason='truth_vote_payout', amount=+staked_tp*2 を
-                 プラットフォーム負担として追加insert（原資は敗者没収分と紐付けない、product.md 3.4節）
-               外れ側: 追加処理なし（既にstake時点で減算済み＝没収。tp_transactionsに
-                 reason='truth_vote_forfeit', amount=0 の記録行のみ残し監査ログを完結させる）
+               的中側: 山分けボーナス = (総チケット数 × 100TP) ÷ 正解者数（product.md 3.4.3節の数理式）
+                 を各正解者へ tp_transactions(reason='truth_vote_payout') としてプラットフォームが
+                 新規発行（原資は敗者のチケットと紐付けない、完全に切り離す）
+               外れ側: 追加処理なし（消費済みチケットは返還されず全損。TPの増減は発生しないため
+                 tp_transactionsへの記録行も追加しない。監査は`truth_votes.payout_tp=0`で足りる）
+               ドメインスコア加算: 的中投票者について、対象投稿のdomain_labelsごとに
+                 user_domain_scores.correct_vote_streakを+1し、閾値超過でpromoted_to_domain_expert
+                 をtrueにする（product.md 3.4.1節）
 ```
 
-- **配当2倍の原資**: 敗者の没収TPとは会計上完全に分離し、`truth_vote_payout`は常にプラットフォームが
-  新規に付与するTPとして記録する（product.md 3.4節「配当の原資分離」）。これによりTPの総量は
+- **山分けボーナスの原資分離**: 敗者が失うのは投票権チケットのみ（TPではない）で、正解者への
+  `truth_vote_payout`は常にプラットフォームが新規発行するTPとして記録する（product.md 3.4.3節
+  「配当の原資分離」）。ユーザー間のTP移転が一度も発生しないため、ストア審査上「参加者間の
+  賭博」ではなく「チケットを消費するゲームのクリア報酬」として説明できる。これによりTPの総量は
   投票イベントごとにわずかに増加（インフレ）しうるため、TPの総発行量は`tp_transactions`の
   集計で定期監視する（12章の運用監視に追加）。
 - **リポスト時警告**: `reposts` insert前にクライアントが対象 `posts.truth_verdict` を確認。
@@ -690,7 +745,7 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
 
 - `truth_judgment_requests` が `resolved_verdict = false` で確定した際、Edge Function（`resolve_truth_judgment`の一部）が対象投稿の投稿者に対し `strikes` にレコードを追加する（`reason_request_id`に確定したリクエストのIDを記録）。
 - ストライク発火閾値（累積「偽」確定回数）は Remote Config `strike_thresholds`（仮値 `[1, 3, 5]`）で管理し、該当回数に達するたびに1段階ずつ処理をEdge Function内で分岐実行:
-  - 1st（累積1回）: `intellect_score` を大幅減点し `intellect_percentile` を再計算、該当投稿の `staked_tp` を没収（`tp_transactions`記録）、`strike_expires_at = now() + 14 days` を設定してプロフィールに警告ラベルを表示。
+  - 1st（累積1回）: `intellect_score` を大幅減点し `intellect_percentile` を再計算、`strike_expires_at = now() + 14 days` を設定してプロフィールに警告ラベルを表示。
   - 2nd（累積3回）: バッジ非表示になるよう `intellect_percentile` を強制的に閾値以下に設定するフラグ列を追加（`badge_suppressed_until`）、投稿権限ロック（`posting_locked_until`）。
   - 3rd（累積5回）: `is_permanently_banned` フラグを立てず、代わりに `profiles` の主要スコア列・`tp_balance`・フォロワー関連集計をリセットする「ソフトリセット」処理（アカウント自体は維持し、再出発とする）。
 - 誤爆防止のため `appeals` テーブルで異議申し立てを受け付け（`target_type='truth_judgment'`で該当リクエストへの異議、または`target_type='strike'`でストライク自体への異議）、承認された場合はストライクを取り消し、罰則を巻き戻すロールバック処理を用意。
@@ -954,7 +1009,7 @@ Mux（動画基盤）は開発初期を **Free プラン**（月間配信100,000
 | Google Play Console | 審査提出・ポリシー指摘対応、データセーフティフォーム維持、コンテンツレーティング更新、段階的ロールアウト監視 | リリース都度 |
 | 利用規約/プライバシー | データ削除・開示請求対応（自動化未設計、問い合わせベース）、規約更新（[docs/terms.md](../docs/terms.md) / [docs/privacy.md](../docs/privacy.md)） | 発生都度 |
 | カスタマーサポート | サポートメール問い合わせ対応 | 常時 |
-| セキュリティ | スコア操作・ステーキング悪用等、自動検知対象外の経済的搾取パターンの目視監視 | 随時 |
+| セキュリティ | スコア操作・TP消費悪用等、自動検知対象外の経済的搾取パターンの目視監視 | 随時 |
 
 自動化パイプラインの外れ値を拾う一次窓口が最低1名、継続的に必要になる運用設計である点に留意する。
 
