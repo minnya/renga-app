@@ -17,18 +17,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Read app version
+      - name: Determine next version (v0.0.N, auto-increment from existing releases)
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(grep '^version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          LATEST=$(gh release list -R "${{ github.repository }}" --limit 200 --json tagName -q '.[].tagName' \
+            | grep -E '^v0\.0\.[0-9]+$' \
+            | sed -E 's/^v0\.0\.//' \
+            | sort -n | tail -1)
+          NEXT=$(( ${LATEST:-0} + 1 ))
+          echo "version_code=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "tag=v0.0.$NEXT" >> "$GITHUB_OUTPUT"
 
       - name: Create release draft with auto-generated notes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.version.outputs.version }}-${{ github.run_number }}" \
+          gh release create "${{ steps.version.outputs.tag }}" \
             --draft \
             --generate-notes \
             --target "${{ github.sha }}" \
-            --title "v${{ steps.version.outputs.version }} (build ${{ github.run_number }})"
+            --title "${{ steps.version.outputs.tag }}"

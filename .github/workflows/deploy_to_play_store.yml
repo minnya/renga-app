@@ -20,6 +20,13 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Parse version code from release tag (v0.0.N)
+        id: version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          CODE="${TAG#v0.0.}"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
       - name: Write Play Store release notes (whatsnew)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -41,7 +48,9 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           flutter pub get
-          flutter build appbundle --release
+          flutter build appbundle --release \
+            --build-name="0.0.${{ steps.version.outputs.code }}" \
+            --build-number="${{ steps.version.outputs.code }}"
 
       - name: Remove upload keystore
         if: always()
