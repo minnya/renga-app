@@ -94,7 +94,9 @@ Depending on your location, you may have rights to access, correct, export, or d
 data, and to object to or restrict certain processing. You can:
 
 - Edit most profile information directly in the App.
-- Request account deletion by contacting **[support@renga-app.com](mailto:support@renga-app.com)**.
+- Request account deletion in-app (Settings → Delete Account) or by contacting
+  **[support@renga-app.com](mailto:support@renga-app.com)**. See our
+  [Account Deletion](account-deletion.html) page for details on what is deleted and retained.
 - Control ad personalization through your device's advertising settings (e.g., "Opt out of Ads
   Personalization" in Android system settings).
 - Control push notifications through your device settings.
