@@ -121,9 +121,19 @@ class _QuizPageState extends ConsumerState<QuizPage> {
     }
   }
 
+  /// TP付与RPC（`award_daily_completion_tp`）が失敗した場合（多重達成防止の例外・通信
+  /// エラー等）でも、結果サマリー画面自体は必ず表示する。ここで例外を無視して
+  /// `_finished`まで到達させないと、`_finishing`が立ったまま画面が固まり、「結果を見る」を
+  /// 押しても何も起きない（ホームに戻ったように見える）不具合になる。
   Future<void> _handleFinish() async {
     if (widget.kind == QuizKind.daily && !_tpAwarded) {
-      _dailyResult = await ref.read(quizControllerProvider).awardDailyCompletionTp();
+      try {
+        _dailyResult = await ref.read(quizControllerProvider).awardDailyCompletionTp();
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+        }
+      }
       _tpAwarded = true;
     }
     ref.read(quizControllerProvider).invalidateCompletionStatus();
