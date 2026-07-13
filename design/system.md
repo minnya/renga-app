@@ -675,8 +675,8 @@ product.md 3.12.1節「投稿・DMメッセージの自動翻訳」に対応す�
 `translate_text` を新設する。翻訳という用途にGeminiの汎用LLM呼び出しを使うのはコスト・レイテンシの
 両面で非効率なため、翻訳専用の**Google Cloud Translation API v3 (Advanced)** を使う（他機能
 （ドメインラベリング・クイズ生成・モデレーション）は引き続きGeminiのまま）。認証は8章
-「通知アーキテクチャ」の`send_push_notification`が使うFirebase Admin SDKサービスアカウントJSON
-（Function Secrets `FIREBASE_SERVICE_ACCOUNT_JSON`）を流用し、`https://www.googleapis.com/auth/
+「通知アーキテクチャ」の`send_push_notification`が使うFirebase Admin SDKサービスアカウントJSONと
+同じ鍵を流用し、`https://www.googleapis.com/auth/
 cloud-platform`スコープの自己署名JWT→アクセストークン交換（同じ`send_push_notification`の実装）で
 呼び出す。同じGCPプロジェクト（`chatapp-renga`）のサービスアカウントに「Cloud Translation API
 User」（`roles/cloudtranslate.user`）ロールを追加付与する必要がある。ユーザー認証部分は
@@ -686,7 +686,9 @@ User」（`roles/cloudtranslate.user`）ロールを追加付与する必要が�
 ```
 [投稿/DMメッセージ本文] → [Translate ボタンタップ] → [Edge Function: translate_text]
    ├─ 入力: { text: string, target_locale: 'en' | 'ja' }
-   ├─ FIREBASE_SERVICE_ACCOUNT_JSON でOAuth2アクセストークンを取得
+   ├─ FIREBASE_SERVICE_ACCOUNT_JSON_B64（サービスアカウントJSONをbase64エンコードしたFunction
+   │   Secret。生JSONを直接Secretに設定すると改行・引用符がCLI/シェル環境依存で壊れることがある
+   │   ため、base64化して保持しFunction側でデコードする）でOAuth2アクセストークンを取得
    ├─ Google Cloud Translation API v3
    │   (https://translation.googleapis.com/v3/projects/{project_id}/locations/global:translateText)
    │   に { contents: [text], targetLanguageCode: target_locale, mimeType: 'text/plain' } をPOSTする
@@ -701,8 +703,8 @@ User」（`roles/cloudtranslate.user`）ロールを追加付与する必要が�
   ユーザーの明示的な操作起点のため成功/失敗をそのままユーザーに伝える）。
 - 事前準備: GCPプロジェクト`chatapp-renga`で「Cloud Translation API」を有効化し、Firebase Admin SDK
   サービスアカウント（`firebase-adminsdk-fbsvc@chatapp-renga.iam.gserviceaccount.com`）に
-  「Cloud Translation API User」ロールを追加付与する。新規のAPIキー発行は不要（既存の
-  `FIREBASE_SERVICE_ACCOUNT_JSON`をそのまま流用する）。
+  「Cloud Translation API User」ロールを追加付与する。新規のAPIキー発行は不要（既存のサービス
+  アカウント鍵をbase64化して`FIREBASE_SERVICE_ACCOUNT_JSON_B64`として流用する。.env.example参照）。
 
 ---
 

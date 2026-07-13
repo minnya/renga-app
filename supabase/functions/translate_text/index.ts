@@ -177,16 +177,20 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
-  if (!supabaseUrl || !serviceRoleKey || !serviceAccountJson) {
+  // Function Secretsへ生JSONをそのまま設定すると、CLI/シェル経由の設定時に埋め込みの
+  // 改行・引用符がプラットフォーム（特にWindows）依存のクォーティング処理で壊れることがあるため、
+  // base64エンコードした文字列（`FIREBASE_SERVICE_ACCOUNT_JSON_B64`）として保持しデコードする。
+  const serviceAccountJsonB64 = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON_B64');
+  if (!supabaseUrl || !serviceRoleKey || !serviceAccountJsonB64) {
     return jsonResponse({ error: 'server misconfigured' }, 500);
   }
 
   let serviceAccount: FirebaseServiceAccount;
   try {
-    serviceAccount = JSON.parse(serviceAccountJson);
+    const decoded = atob(serviceAccountJsonB64);
+    serviceAccount = JSON.parse(decoded);
   } catch {
-    return jsonResponse({ error: 'FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON' }, 500);
+    return jsonResponse({ error: 'FIREBASE_SERVICE_ACCOUNT_JSON_B64 is not valid base64-encoded JSON' }, 500);
   }
 
   // Authorizationヘッダーのユーザーjwtが有効かどうかのみ確認する（label_post_domainと同様）。
