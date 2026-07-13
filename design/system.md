@@ -673,17 +673,23 @@ Rengaにおけるすべてのアプリケーション内AI機能は **Gemini API
 
 product.md 3.12.1節「投稿・DMメッセージの自動翻訳」に対応するEdge Function
 `translate_text` を新設する。翻訳という用途にGeminiの汎用LLM呼び出しを使うのはコスト・レイテンシの
-両面で非効率なため、翻訳専用の**Google Cloud Translation API (v2, Basic)** を使う（他機能
-（ドメインラベリング・クイズ生成・モデレーション）は引き続きGeminiのまま）。`label_post_domain`と
-同じ認証パターン（AuthorizationヘッダーのユーザーJWT検証のみ、DB更新は行わない）に倣う。
+両面で非効率なため、翻訳専用の**Google Cloud Translation API v3 (Advanced)** を使う（他機能
+（ドメインラベリング・クイズ生成・モデレーション）は引き続きGeminiのまま）。認証は8章
+「通知アーキテクチャ」の`send_push_notification`が使うFirebase Admin SDKサービスアカウントJSON
+（Function Secrets `FIREBASE_SERVICE_ACCOUNT_JSON`）を流用し、`https://www.googleapis.com/auth/
+cloud-platform`スコープの自己署名JWT→アクセストークン交換（同じ`send_push_notification`の実装）で
+呼び出す。同じGCPプロジェクト（`chatapp-renga`）のサービスアカウントに「Cloud Translation API
+User」（`roles/cloudtranslate.user`）ロールを追加付与する必要がある。ユーザー認証部分は
+`label_post_domain`と同じパターン（AuthorizationヘッダーのユーザーJWT検証のみ、DB更新は行わない）に
+倣う。
 
 ```
 [投稿/DMメッセージ本文] → [Translate ボタンタップ] → [Edge Function: translate_text]
    ├─ 入力: { text: string, target_locale: 'en' | 'ja' }
-   ├─ Google Cloud Translation API v2 (https://translation.googleapis.com/language/translate/v2)
-   │   にAPIキー認証（`GOOGLE_TRANSLATE_API_KEY` Function Secret）で { q: text, target: target_locale,
-   │   format: 'text' } をPOSTする（v2 BasicはAPIキーのみで呼び出せ、v3 Advancedのような
-   │   サービスアカウント/OAuth2は不要）
+   ├─ FIREBASE_SERVICE_ACCOUNT_JSON でOAuth2アクセストークンを取得
+   ├─ Google Cloud Translation API v3
+   │   (https://translation.googleapis.com/v3/projects/{project_id}/locations/global:translateText)
+   │   に { contents: [text], targetLanguageCode: target_locale, mimeType: 'text/plain' } をPOSTする
    └─ 応答: { translated_text: string } をクライアントへ返す（DBへの永続化は行わない）
 ```
 
@@ -693,9 +699,10 @@ product.md 3.12.1節「投稿・DMメッセージの自動翻訳」に対応す�
 - 失敗時（API呼び出し失敗・レート制限等）はエラーレスポンスを返し、クライアント側はスナックバー等で
   エラーを表示してボタン状態を元に戻す（ベストエフォートの`label_post_domain`とは異なり、翻訳は
   ユーザーの明示的な操作起点のため成功/失敗をそのままユーザーに伝える）。
-- 事前準備: GCPプロジェクトで「Cloud Translation API」を有効化し、そのAPI専用に制限した
-  APIキーを発行して`GOOGLE_TRANSLATE_API_KEY`としてFunction Secretsに設定する
-  （11章の環境変数管理方針に準拠）。
+- 事前準備: GCPプロジェクト`chatapp-renga`で「Cloud Translation API」を有効化し、Firebase Admin SDK
+  サービスアカウント（`firebase-adminsdk-fbsvc@chatapp-renga.iam.gserviceaccount.com`）に
+  「Cloud Translation API User」ロールを追加付与する。新規のAPIキー発行は不要（既存の
+  `FIREBASE_SERVICE_ACCOUNT_JSON`をそのまま流用する）。
 
 ---
 
