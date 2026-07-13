@@ -966,6 +966,9 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
    │     versionName（`--build-name=0.0.N`）としてそのまま流用する
    ├─ 2. gh release view で公開時点の確定リリースノートを取得し、Playストアの文字数制限（500文字）
    │     に収まるよう整形して android/whatsnew/whatsnew-ja-JP に書き出す
+   ├─ 2.5. GitHub Secrets（SUPABASE_URL / SUPABASE_ANON_KEY / GOOGLE_OAUTH_CLIENT_ID）から
+   │     .env をCIワークスペース内に生成する（pubspec.yamlのassetとして必須、かつ
+   │     アプリ起動時にSUPABASE_URL/SUPABASE_ANON_KEYが無いと例外を投げるため必須）
    ├─ 3. GitHub Secrets の ANDROID_KEYSTORE_BASE64 をデコードし、CIワークスペース内に
    │     upload-keystore.jks を一時復元する（ジョブ終了後は使い捨て、リポジトリには残さない）
    ├─ 4. ANDROID_KEYSTORE_PATH / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS /

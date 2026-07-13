@@ -37,6 +37,15 @@ jobs:
             | cut -c1-500 \
             > android/whatsnew/whatsnew-ja-JP
 
+      - name: Write .env
+        run: |
+          cat > .env <<EOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          GOOGLE_OAUTH_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          FLUTTER_APP_ENV=prod
+          EOF
+
       - name: Restore upload keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
 
