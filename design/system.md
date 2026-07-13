@@ -947,6 +947,42 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
 
 この構成により、Flutter/Firebase/Supabase/Gemini/Mux側それぞれの設定変更をCLIコマンドとして再現可能にし、チーム内・CI環境での再セットアップを容易にする。
 
+### 11.7 CI/CDパイプライン（GitHub Actions）
+
+`production` ブランチへのマージからGoogle Play Store（`production`トラック）への配信までを、GitHub Actionsの2つのワークフローで自動化する。GitHub Releaseの下書き（Draft）を人間が確認・編集してから公開（Published）する工程を挟むことで、リリースノートの品質確認とリリースタイミングの制御を両立する。
+
+```
+[production へのマージ] → create_gh_release_draft.yml
+   └─ GitHubの generate_release_notes 機能でマージ済みPR群からリリースノートを自動生成し、
+      GitHub Release の下書き（Draft）を作成する
+
+[人間が下書きを確認・編集し、Release を Publish] → deploy_to_play_store.yml
+   ├─ 1. gh release view で公開時点の確定リリースノートを取得し、Playストアの文字数制限（500文字）
+   │     に収まるよう整形して android/whatsnew/whatsnew-ja-JP に書き出す
+   ├─ 2. GitHub Secrets の ANDROID_KEYSTORE_BASE64 をデコードし、CIワークスペース内に
+   │     upload-keystore.jks を一時復元する（ジョブ終了後は使い捨て、リポジトリには残さない）
+   ├─ 3. ANDROID_KEYSTORE_PATH / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS /
+   │     ANDROID_KEY_PASSWORD を環境変数として注入し、flutter build appbundle --release を実行
+   ├─ 4. 生成した .aab を対象の GitHub Release に成果物として添付
+   └─ 5. r0adkll/upload-google-play アクションで .aab とリリースノートを
+         Google Play の production トラックへアップロード
+```
+
+**署名鍵の管理方針**:
+
+- 本番アップロードキー（`upload-keystore.jks`）はリポジトリにコミットしない。ローカルで `keytool -genkeypair` により生成し、開発者のマシン等、リポジトリ外の安全な場所に保管する。
+- CIでの利用のため、鍵をBase64エンコードして以下のGitHub Secrets（`Settings > Secrets and variables > Actions`）に登録する。
+
+| Secret名 | 内容 |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | `upload-keystore.jks` をBase64エンコードした文字列（CI上でデコードして復元） |
+| `ANDROID_KEYSTORE_PASSWORD` | ストアパスワード |
+| `ANDROID_KEY_ALIAS` | 鍵のエイリアス名 |
+| `ANDROID_KEY_PASSWORD` | キーパスワード |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | `r0adkll/upload-google-play` 用のGoogle Playサービスアカウント鍵（JSON） |
+
+- `android/app/build.gradle.kts` の `signingConfigs.release` は、CI環境から上記4つの環境変数（`ANDROID_KEYSTORE_PATH` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`）が揃っている場合はそれを優先し、揃っていない場合はローカルの `android/key.properties`（Git管理外、開発者手元のみ）を読み込むフォールバック構成とする。どちらも存在しない場合は従来通りdebug鍵で署名し、`flutter run --release` のローカル動作を妨げない。
+
 ---
 
 ## 12. 無料枠を前提とした制約とスケーリング方針
