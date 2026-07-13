@@ -688,7 +688,8 @@ class _PostTileState extends ConsumerState<PostTile> {
                 ),
                 const SizedBox(height: 12),
               ],
-              // Action bar: Like, Comment, Repost, Share（アイコンのみ。件数は1以上のみ表示）
+              // Action bar: Like, Comment, Repost, Truth Judgment, Share
+              // （design/product.md 3.12節。アイコンのみ。件数は1以上のみ表示）
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -709,15 +710,16 @@ class _PostTileState extends ConsumerState<PostTile> {
                     color: isReposted ? Colors.green : null,
                     onPressed: () => _openRepostOptions(isReposted),
                   ),
+                  // design/product.md 3.4節「真偽投票」。Feed/Discover双方の投稿に表示する
+                  // （旧: Discover画面側で個別に表示していたが、PostTile側へ統合した）。
+                  TruthJudgmentIcon(postId: post.id),
                   _ActionBarButton(
                     icon: Icons.share_outlined,
                     onPressed: _handleShare,
                   ),
                 ],
               ),
-              // design/product.md 3.4節「真偽投票」。Feed/Discover双方の投稿に表示する
-              // （旧: Discover画面側で個別に表示していたが、PostTile側へ統合した）。
-              TruthJudgmentSection(postId: post.id, postAuthorId: post.authorId),
+              TruthJudgmentBody(postId: post.id, postAuthorId: post.authorId),
             ],
           ),
         ),

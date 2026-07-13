@@ -23,11 +23,19 @@ import 'truth_judgment.dart';
 ///   「審議投票中」というステータス・締切までの残り時間・総票数のみ表示する（モザイク）。
 ///   自分の投票が成立した瞬間、または`resolved`/`invalid`確定後に、真/偽の内訳を1本のバーに
 ///   色分けして表示するインテリジェンス・メーター（3.4.4節）としてアンロックする。
-class TruthJudgmentSection extends ConsumerWidget {
-  const TruthJudgmentSection({super.key, required this.postId, required this.postAuthorId});
+/// design/product.md 3.12節「アクションバーの表示形式」。いいね・コメント・リポスト・
+/// 真偽審判・シェアの順で1列に並ぶアクションバー内に配置する、アイコンのみのトリガー
+/// ボタン（3.4節）。
+///
+/// - リクエスト未起票: `Create`権限（上位25%以上）保持者にのみ活性のアイコンを表示する。
+///   タップすると権限の有無に関わらずまず説明・確認ダイアログを開く。
+/// - 投票中/確定済み: 審議が進行中であることを示すアイコン（塗りつぶし表示）に切り替える。
+///   タップすると現在のステータスのみを表示する読み取り専用ダイアログを開く
+///   （投票そのものは[TruthJudgmentBody]の専用UIで行う）。
+class TruthJudgmentIcon extends ConsumerWidget {
+  const TruthJudgmentIcon({super.key, required this.postId});
 
   final String postId;
-  final String postAuthorId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,31 +49,23 @@ class TruthJudgmentSection extends ConsumerWidget {
       error: (error, stackTrace) => const SizedBox.shrink(),
       data: (request) {
         if (request == null) {
-          // リクエスト未起票: 3.12節のいいね・コメントと同様、アイコンのみのボタンを常時表示する。
-          // Create権限（上位25%以上）を持たないユーザーには非活性色で表示する。タップすると
-          // 権限の有無に関わらずまず説明・確認ダイアログを開く（3.4節）。
           final canRequest = isTopTier && currentUser != null;
-          return Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: IconButton(
-              onPressed: () => _showJudgmentRequestDialog(context, ref, canRequest, currentUser == null),
-              icon: Icon(
-                Icons.gavel_outlined,
-                size: 20,
-                color: canRequest ? null : Theme.of(context).disabledColor,
-              ),
-              tooltip: '真偽審判リクエスト',
-              visualDensity: VisualDensity.compact,
+          return GestureDetector(
+            onTap: () => _showJudgmentRequestDialog(context, ref, canRequest, currentUser == null),
+            child: Icon(
+              Icons.gavel_outlined,
+              size: 20,
+              color: canRequest ? Theme.of(context).colorScheme.onSurfaceVariant : Theme.of(context).disabledColor,
             ),
           );
         }
 
-        return Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: _RequestBody(
-            request: request,
-            postAuthorId: postAuthorId,
-            isTopTier: isTopTier,
+        return GestureDetector(
+          onTap: () => _showJudgmentStatusDialog(context, request),
+          child: Icon(
+            Icons.gavel,
+            size: 20,
+            color: Theme.of(context).colorScheme.primary,
           ),
         );
       },
@@ -115,6 +115,28 @@ class TruthJudgmentSection extends ConsumerWidget {
     );
   }
 
+  Future<void> _showJudgmentStatusDialog(BuildContext context, TruthJudgmentRequest request) async {
+    final statusText = request.isResolved
+        ? '判定確定: ${request.resolvedVerdict == true ? "真" : "偽"}'
+        : request.isInvalid
+        ? '無効・返還（クォーラム未達）'
+        : '審議投票中（締切まで残り時間はメーターを参照）';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('真偽審判リクエスト'),
+        content: Text('この投稿は真偽審判の対象になっています。\n\n$statusText'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _requestJudgment(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -124,6 +146,40 @@ class TruthJudgmentSection extends ConsumerWidget {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('$e')));
     }
+  }
+}
+
+/// design/product.md 3.4節。真偽審判リクエストが起票されている投稿にのみ表示する、
+/// 投票用のブラインド/インテリジェンス・メーターと投票ボタン。アクションバー内の
+/// [TruthJudgmentIcon]とは別に、アクションバーの下に表示する。
+class TruthJudgmentBody extends ConsumerWidget {
+  const TruthJudgmentBody({super.key, required this.postId, required this.postAuthorId});
+
+  final String postId;
+  final String postAuthorId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final requestAsync = ref.watch(truthJudgmentRequestProvider(postId));
+    final isTopTierAsync = ref.watch(isTopIntellectTierProvider);
+    final isTopTier = isTopTierAsync.value ?? false;
+
+    return requestAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (error, stackTrace) => const SizedBox.shrink(),
+      data: (request) {
+        if (request == null) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: _RequestBody(
+            request: request,
+            postAuthorId: postAuthorId,
+            isTopTier: isTopTier,
+          ),
+        );
+      },
+    );
   }
 }
 
