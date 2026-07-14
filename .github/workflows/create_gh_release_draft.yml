@@ -46,41 +46,43 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install sops / yq
+      - name: Install git-crypt / yq
         run: |
-          curl -sL -o /usr/local/bin/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
-          chmod +x /usr/local/bin/sops
+          sudo apt-get update -y
+          sudo apt-get install -y git-crypt
           curl -sL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
           chmod +x /usr/local/bin/yq
 
-      - name: Decrypt secrets (SOPS)
+      - name: Unlock secrets (git-crypt)
         env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+          GIT_CRYPT_KEY_BASE64: ${{ secrets.GIT_CRYPT_KEY_BASE64 }}
         run: |
-          sops --decrypt secrets/ci.enc.yaml > "$RUNNER_TEMP/ci-secrets.yaml"
+          echo "$GIT_CRYPT_KEY_BASE64" | base64 -d > "$RUNNER_TEMP/git-crypt-key"
+          git-crypt unlock "$RUNNER_TEMP/git-crypt-key"
+          rm -f "$RUNNER_TEMP/git-crypt-key"
 
       - name: Write .env
         run: |
           {
-            echo "SUPABASE_URL=$(yq -r '.SUPABASE_URL' "$RUNNER_TEMP/ci-secrets.yaml")"
-            echo "SUPABASE_ANON_KEY=$(yq -r '.SUPABASE_ANON_KEY' "$RUNNER_TEMP/ci-secrets.yaml")"
-            echo "GOOGLE_OAUTH_CLIENT_ID=$(yq -r '.GOOGLE_OAUTH_CLIENT_ID' "$RUNNER_TEMP/ci-secrets.yaml")"
+            echo "SUPABASE_URL=$(yq -r '.SUPABASE_URL' secrets/ci.yaml)"
+            echo "SUPABASE_ANON_KEY=$(yq -r '.SUPABASE_ANON_KEY' secrets/ci.yaml)"
+            echo "GOOGLE_OAUTH_CLIENT_ID=$(yq -r '.GOOGLE_OAUTH_CLIENT_ID' secrets/ci.yaml)"
             echo "FLUTTER_APP_ENV=prod"
           } > .env
 
       - name: Restore google-services.json
-        run: yq -r '.GOOGLE_SERVICES_JSON' "$RUNNER_TEMP/ci-secrets.yaml" > android/app/google-services.json
+        run: yq -r '.GOOGLE_SERVICES_JSON' secrets/ci.yaml > android/app/google-services.json
 
       - name: Restore upload keystore
-        run: yq -r '.ANDROID_KEYSTORE_BASE64' "$RUNNER_TEMP/ci-secrets.yaml" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
+        run: yq -r '.ANDROID_KEYSTORE_BASE64' secrets/ci.yaml | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
 
       - name: Build signed App Bundle
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
         run: |
-          ANDROID_KEYSTORE_PASSWORD="$(yq -r '.ANDROID_KEYSTORE_PASSWORD' "$RUNNER_TEMP/ci-secrets.yaml")"
-          ANDROID_KEY_ALIAS="$(yq -r '.ANDROID_KEY_ALIAS' "$RUNNER_TEMP/ci-secrets.yaml")"
-          ANDROID_KEY_PASSWORD="$(yq -r '.ANDROID_KEY_PASSWORD' "$RUNNER_TEMP/ci-secrets.yaml")"
+          ANDROID_KEYSTORE_PASSWORD="$(yq -r '.ANDROID_KEYSTORE_PASSWORD' secrets/ci.yaml)"
+          ANDROID_KEY_ALIAS="$(yq -r '.ANDROID_KEY_ALIAS' secrets/ci.yaml)"
+          ANDROID_KEY_PASSWORD="$(yq -r '.ANDROID_KEY_PASSWORD' secrets/ci.yaml)"
           export ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
           flutter pub get
           flutter build appbundle --release \
@@ -89,7 +91,9 @@ jobs:
 
       - name: Remove decrypted secrets
         if: always()
-        run: rm -f "$RUNNER_TEMP/ci-secrets.yaml" "$RUNNER_TEMP/upload-keystore.jks"
+        run: |
+          git-crypt lock || true
+          rm -f "$RUNNER_TEMP/upload-keystore.jks"
 
       - name: Attach App Bundle to draft Release
         env:

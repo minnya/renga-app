@@ -3,7 +3,7 @@
 .env.*
 !.env.example
 secrets/*
-!secrets/ci.enc.yaml
+!secrets/ci.yaml
 *.json.key
 firebase-service-account*.json
 google-services.json
