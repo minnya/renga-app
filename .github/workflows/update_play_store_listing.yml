@@ -52,12 +52,16 @@ jobs:
       - name: Extract Google Play service account
         run: yq -r '.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON' secrets/ci.yaml > "$RUNNER_TEMP/play-service-account.json"
 
+      - name: Install Android Publisher API client
+        run: pip install --quiet google-api-python-client google-auth
+
       - name: Sync store listing metadata to Google Play
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJson: ${{ runner.temp }}/play-service-account.json
-          packageName: com.minnya.renga
-          metadataDirectory: metadata/android
+        run: |
+          python assets/store/listing/sync_store_listing.py \
+            --package-name com.minnya.renga \
+            --service-account-json "$RUNNER_TEMP/play-service-account.json" \
+            --metadata-dir metadata/android \
+            --locale en-US
 
       - name: Remove decrypted secrets
         if: always()

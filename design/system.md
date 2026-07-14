@@ -997,19 +997,19 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
 [production へのマージ] → update_play_store_listing.yml
    ├─ 1. リポジトリ内の単一ソース（`assets/store/listing/*.txt`・`assets/store/listing/app_icon_512.png`・
    │     `assets/store/feature_graphic_1024x500.png`・`assets/store/screenshots_en/{phone,tablet_7in,tablet_10in}/`）
-   │     から、fastlane supply が要求するディレクトリ構造（`metadata/android/en-US/...`）をCIワークスペース内に
-   │     都度組み立てる（このfastlane形式のディレクトリ自体はリポジトリにコミットせず、CI実行時にのみ生成する
-   │     使い捨て成果物とする。素材の実体はリポジトリ内では常に`assets/store/`配下の1箇所に保つ）
+   │     から、fastlane supply互換のディレクトリ構造（`metadata/android/en-US/...`）をCIワークスペース内に
+   │     都度組み立てる（このディレクトリ自体はリポジトリにコミットせず、CI実行時にのみ生成する使い捨て
+   │     成果物とする。素材の実体はリポジトリ内では常に`assets/store/`配下の1箇所に保つ）
    ├─ 2. git-crypt（11.7節前段と同じ手順）で `secrets/ci.yaml` をアンロードし、
    │     `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` を `yq` で抽出する
-   └─ 3. r0adkll/upload-google-play アクションを `metadataDirectory: metadata/android`・
-         `releaseFiles`未指定（＝新規バイナリはアップロードしない）で実行し、
-         ストア掲載情報のみをGoogle Playへ反映する
+   └─ 3. `assets/store/listing/sync_store_listing.py`（Android Publisher APIを直接呼ぶPythonスクリプト）
+         を実行し、ストア掲載情報のみをGoogle Playへ反映する
 ```
 
 - トリガーは`create_gh_release_draft.yml`と同じく`push`（`production`ブランチ）。バイナリのビルド・Release下書き作成とは別ジョブ・別ワークフローとして独立させ、どちらかの失敗がもう片方をブロックしないようにする。
 - 既定言語（en-US）のみを対象とする。日本語（ja-JP）ローカライズが用意でき次第、同様の構造で`metadata/android/ja-JP/`を追加する。
 - スクリーンショットは実機キャプチャ済みのもの（7章「スクリーンショット」参照）を使う。`assets/store/screenshots/`配下のワイヤーフレームPLACEHOLDER画像はこのワークフローの対象に含めない。
+- **メタデータ同期に`r0adkll/upload-google-play`アクションは使わない**: 同アクションは`releaseFiles`（.aab/.apk）を必須入力としており、`metadataDirectory`単体でのメタデータのみ更新（バイナリ・トラック操作なし）には対応していない（実際にワークフローを実行し`Error: You must provide 'releaseFiles' in your configuration`で失敗することを確認済み）。そのため、Android Publisher API（`androidpublisher` v3）を`google-api-python-client`から直接呼び出す`sync_store_listing.py`を実装し、`edits.insert` → `edits.listings.update`（タイトル・説明文） → `edits.images.deleteall`+`upload`（アイコン・フィーチャーグラフィック・各サイズのスクリーンショット） → `edits.commit` の一連のeditで反映する。
 
 **シークレット管理方針（git-crypt）**:
 
