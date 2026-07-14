@@ -756,6 +756,7 @@ Play Store審査中〜公開後の告知先、SNS/プロフィールのバイオ
   2. 人がGitHub UI上で下書きのリリースノートを確認・編集した上で「Publish release」を手動実行すると、それをトリガーに（再ビルドせず）Draft作成時点で添付済みの `.aab` をそのままGoogle Play `production` トラックへ配信する（`deploy_to_play_store.yml`）。
      - **注意**: `deploy_to_play_store.yml`の起動には人によるGitHub UI上での手動publish操作が必須。デフォルトの`GITHUB_TOKEN`でAPI経由でreleaseを作成・公開しても`release: published`イベントは他ワークフローの新規トリガーにならない（GitHub Actionsの無限ループ防止仕様）ため、下書き作成まではワークフロー任せ、公開操作は必ず人が行う運用とする。
   - 署名鍵（アップロードキー）はリポジトリに含めず、Base64化してGitHub Secretsで管理し、ビルド時のみ一時的に復元する。
+  3. 上記のバイナリ配信パイプラインとは独立に、`production`へのマージをトリガーとして`update_play_store_listing.yml`がストア掲載情報（タイトル・説明文・スクリーンショット・フィーチャーグラフィック）を`assets/store/`配下の素材からGoogle Playへ同期する（詳細は[system.md — 11.7 CI/CDパイプライン（GitHub Actions）— ストア掲載情報自動更新ワークフロー](system.md#117-cicdパイプラインgithub-actions)を参照）。
 
 ---
 

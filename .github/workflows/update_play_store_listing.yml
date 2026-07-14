@@ -1,0 +1,66 @@
+name: Update Play Store Listing
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - "assets/store/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update-listing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Assemble fastlane metadata directory from assets/store/
+        run: |
+          LOCALE_DIR="metadata/android/en-US"
+          mkdir -p "$LOCALE_DIR/images/phoneScreenshots"
+          mkdir -p "$LOCALE_DIR/images/sevenInchScreenshots"
+          mkdir -p "$LOCALE_DIR/images/tenInchScreenshots"
+
+          echo "Renga" > "$LOCALE_DIR/title.txt"
+          cp assets/store/listing/short_description_en.txt "$LOCALE_DIR/short_description.txt"
+          cp assets/store/listing/full_description_en.txt "$LOCALE_DIR/full_description.txt"
+          cp assets/store/listing/app_icon_512.png "$LOCALE_DIR/images/icon.png"
+          cp assets/store/feature_graphic_1024x500.png "$LOCALE_DIR/images/featureGraphic.png"
+          cp assets/store/screenshots_en/phone/*.png "$LOCALE_DIR/images/phoneScreenshots/"
+          cp assets/store/screenshots_en/tablet_7in/*.png "$LOCALE_DIR/images/sevenInchScreenshots/"
+          cp assets/store/screenshots_en/tablet_10in/*.png "$LOCALE_DIR/images/tenInchScreenshots/"
+
+      - name: Install git-crypt / yq
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y git-crypt
+          curl -sL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+
+      - name: Unlock secrets (git-crypt)
+        env:
+          GIT_CRYPT_KEY_BASE64: ${{ secrets.GIT_CRYPT_KEY_BASE64 }}
+        run: |
+          echo "$GIT_CRYPT_KEY_BASE64" | base64 -d > "$RUNNER_TEMP/git-crypt-key"
+          git-crypt unlock "$RUNNER_TEMP/git-crypt-key"
+          rm -f "$RUNNER_TEMP/git-crypt-key"
+
+      - name: Extract Google Play service account
+        run: yq -r '.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON' secrets/ci.yaml > "$RUNNER_TEMP/play-service-account.json"
+
+      - name: Sync store listing metadata to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: ${{ runner.temp }}/play-service-account.json
+          packageName: com.minnya.renga
+          metadataDirectory: metadata/android
+
+      - name: Remove decrypted secrets
+        if: always()
+        run: |
+          git-crypt lock || true
+          rm -f "$RUNNER_TEMP/play-service-account.json"

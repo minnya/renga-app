@@ -989,6 +989,28 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
 
 バージョンコード（Android `versionCode`）はGitHub Actionsのrepository variables（vars）では管理しない。`vars`への書き込みはデフォルトの`GITHUB_TOKEN`では権限上できず（Fine-grained PAT等の追加トークンが必須）、そのための権限管理コストを避けるため、既存のGitHub Release一覧というGITHUB_TOKEN権限内で完結する情報源から都度算出する方式を採用する（Releaseを削除すると採番がずれるため、公開済みReleaseの削除は避ける）。
 
+**ストア掲載情報（Store Listing）自動更新ワークフロー（`update_play_store_listing.yml`）**:
+
+上記のバイナリ配信パイプラインとは別に、Google Playの「ストア掲載情報」（タイトル・説明文・スクリーンショット・フィーチャーグラフィック等）を`production`ブランチへのマージをトリガーに自動同期するワークフローを設ける。バイナリのリリース可否とは独立に、いつでも最新の掲載情報をPlay Consoleへ反映できるようにする目的（実機キャプチャの差し替え等が、次回アプリバージョンのリリースを待たずに反映される）。
+
+```
+[production へのマージ] → update_play_store_listing.yml
+   ├─ 1. リポジトリ内の単一ソース（`assets/store/listing/*.txt`・`assets/store/listing/app_icon_512.png`・
+   │     `assets/store/feature_graphic_1024x500.png`・`assets/store/screenshots_en/{phone,tablet_7in,tablet_10in}/`）
+   │     から、fastlane supply が要求するディレクトリ構造（`metadata/android/en-US/...`）をCIワークスペース内に
+   │     都度組み立てる（このfastlane形式のディレクトリ自体はリポジトリにコミットせず、CI実行時にのみ生成する
+   │     使い捨て成果物とする。素材の実体はリポジトリ内では常に`assets/store/`配下の1箇所に保つ）
+   ├─ 2. git-crypt（11.7節前段と同じ手順）で `secrets/ci.yaml` をアンロードし、
+   │     `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` を `yq` で抽出する
+   └─ 3. r0adkll/upload-google-play アクションを `metadataDirectory: metadata/android`・
+         `releaseFiles`未指定（＝新規バイナリはアップロードしない）で実行し、
+         ストア掲載情報のみをGoogle Playへ反映する
+```
+
+- トリガーは`create_gh_release_draft.yml`と同じく`push`（`production`ブランチ）。バイナリのビルド・Release下書き作成とは別ジョブ・別ワークフローとして独立させ、どちらかの失敗がもう片方をブロックしないようにする。
+- 既定言語（en-US）のみを対象とする。日本語（ja-JP）ローカライズが用意でき次第、同様の構造で`metadata/android/ja-JP/`を追加する。
+- スクリーンショットは実機キャプチャ済みのもの（7章「スクリーンショット」参照）を使う。`assets/store/screenshots/`配下のワイヤーフレームPLACEHOLDER画像はこのワークフローの対象に含めない。
+
 **シークレット管理方針（git-crypt）**:
 
 CIで必要な環境変数・鍵ファイルの種類が増えたため、個々のGitHub Secretsを都度追加していく方式ではなく、**git-crypt（対称鍵によるtransparent暗号化）で暗号化した1ファイル**（`secrets/ci.yaml`）にまとめてリポジトリにコミットし、復号鍵1つだけをGitHub Secretsで管理する方式を採る（当初SOPS + ageで運用していたが、暗号化ファイルの差分確認が実運用上不要だったため、gitのフィルタ経由でワーキングツリー上は平文として扱えるgit-cryptへ移行した）。
