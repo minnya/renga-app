@@ -717,21 +717,15 @@ Renga（連歌）のブランドコンセプトに沿い、「連なる句／連
 
 ### スクリーンショット
 
-**仮スクリーンショット（ワイヤーフレーム・モックアップ）を生成済み**（実データ・実UIではないプレースホルダー。実装が進み次第、実機キャプチャに差し替える）:
-
-- `assets/store/screenshots/01_feed_placeholder.png` — Feed / レイヤーフィルターのイメージ
-- `assets/store/screenshots/02_battle_placeholder.png` — Battle / ロジックチェックのイメージ
-- `assets/store/screenshots/03_profile_placeholder.png` — Profile / 2軸レーダーのイメージ
-- `assets/store/screenshots/04_daily_quiz_placeholder.png` — デイリークイズモーダルのイメージ
-- `assets/store/feature_graphic_1024x500.png` — Play Store フィーチャーグラフィックの仮版
-
-いずれも「PLACEHOLDER MOCKUP」の透かしを明示的に入れており、そのままストア申請には使用不可。実装後、同じレイアウト意図が伝わる構図で実機キャプチャに置き換える。
-
-**Play Console提出用サイズの英語版仮スクリーンショットも生成済み**（同じくPLACEHOLDER MOCKUP、`assets/store/listing/generate_screenshots.py`で再生成可能。Feed/Discoverの真偽投票メーター/Profile/デイリークイズの4カットで統一）:
+**Play Console提出用の英語版スクリーンショットは実機キャプチャ済み**（Google Playの「スクリーンショットがプレースホルダー/ストック画像で実際のアプリ体験を反映していない」という審査指摘を受け、`flutter build web --release`したアプリをPlaywrightで操作し、本番Supabaseプロジェクトのテストアカウントでログインした実画面をキャプチャして差し替えた。Feed/Discoverの真偽投票メーター/Profileスコアカード/デイリークイズの4カットで統一）:
 
 - `assets/store/screenshots_en/phone/` — 1080×1920（9:16、電話用）
 - `assets/store/screenshots_en/tablet_7in/` — 1200×1920（9:16、7インチタブレット用）
 - `assets/store/screenshots_en/tablet_10in/` — 1600×2560（9:16、10インチタブレット用）
+
+**既知の限界**: キャプチャに使用したテストアカウントの投稿内容がテスト用の日本語文言のままであること、Profile画面のハンドルがユーザーIDのUUIDそのまま表示される（Edit Profileにユーザー名変更フィールドが無いため）ことなど、内容面では改善余地がある。実運用ユーザーの投稿が増え次第、より訴求力のある実データのスクリーンショットに再差し替えを検討する。
+
+`assets/store/screenshots/*_placeholder.png` および `assets/store/feature_graphic_1024x500.png`（ランディングページ`docs/index.html`で使用、[system.md — 11.6](system.md#116-github-pages-セットアップ利用規約プライバシーポリシーランディングページ公開)参照）は「PLACEHOLDER MOCKUP」の透かし入りワイヤーフレームのままで、`assets/store/listing/generate_screenshots.py`で再生成できる。Play Console提出には使用しないが、ランディングページ側も実装が進み次第、実機キャプチャに差し替えるのが望ましい（未対応）。
 
 ### ランディングページ（GitHub Pages）
 
