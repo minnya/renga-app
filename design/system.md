@@ -960,14 +960,15 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
    │     依存しない。v0.0.1から開始）
    ├─ 2. GitHubの generate_release_notes 機能でマージ済みPR群からリリースノートを自動生成し、
    │     GitHub Release の下書き（Draft）を作成する
-   ├─ 3. SOPS（後述）で `secrets/ci.enc.yaml` を復号し、`SUPABASE_URL` / `SUPABASE_ANON_KEY` /
-   │     `GOOGLE_OAUTH_CLIENT_ID` から .env を、`GOOGLE_SERVICES_JSON` から
+   ├─ 3. git-crypt（後述）で `secrets/ci.yaml` をアンロック（復号）し、`SUPABASE_URL` /
+   │     `SUPABASE_ANON_KEY` / `GOOGLE_OAUTH_CLIENT_ID` から .env を、`GOOGLE_SERVICES_JSON` から
    │     `android/app/google-services.json` をそれぞれCIワークスペース内に生成する
    │     （.envはpubspec.yamlのassetとして必須、かつアプリ起動時にSUPABASE_URL/
    │     SUPABASE_ANON_KEYが無いと例外を投げるため必須。google-services.jsonはGoogle
    │     Services Gradle Pluginのビルド必須ファイル）
-   ├─ 4. 同じくSOPSで復号した `ANDROID_KEYSTORE_BASE64` をデコードし、CIワークスペース内に
-   │     upload-keystore.jks を一時復元する（ジョブ終了後は使い捨て、リポジトリには残さない）
+   ├─ 4. 同じくアンロックした `secrets/ci.yaml` の `ANDROID_KEYSTORE_BASE64` をデコードし、
+   │     CIワークスペース内に upload-keystore.jks を一時復元する（ジョブ終了後は使い捨て、
+   │     リポジトリには残さない）
    ├─ 5. Nをversion_code（--build-number）・version_name（--build-name=0.0.N）として
    │     flutter build appbundle --release を実行する
    └─ 6. 生成した .aab をこの時点で下書きReleaseへ成果物として添付する
@@ -980,27 +981,50 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
    │     バイナリはDraft時点で人が確認できたものと完全に一致する）
    ├─ 2. gh release view で公開時点の確定リリースノートを取得し、Playストアの文字数制限（500文字）
    │     に収まるよう整形して android/whatsnew/whatsnew-ja-JP に書き出す
-   ├─ 3. SOPSで `secrets/ci.enc.yaml` から `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` のみを
-   │     抽出復号する
+   ├─ 3. 同じくgit-cryptでアンロックした `secrets/ci.yaml` から `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+   │     のみを `yq` で抽出する
    └─ 4. r0adkll/upload-google-play アクションで .aab とリリースノートを
          Google Play の production トラックへアップロード
 ```
 
 バージョンコード（Android `versionCode`）はGitHub Actionsのrepository variables（vars）では管理しない。`vars`への書き込みはデフォルトの`GITHUB_TOKEN`では権限上できず（Fine-grained PAT等の追加トークンが必須）、そのための権限管理コストを避けるため、既存のGitHub Release一覧というGITHUB_TOKEN権限内で完結する情報源から都度算出する方式を採用する（Releaseを削除すると採番がずれるため、公開済みReleaseの削除は避ける）。
 
-**シークレット管理方針（SOPS + age）**:
+**ストア掲載情報（Store Listing）自動更新ワークフロー（`update_play_store_listing.yml`）**:
 
-CIで必要な環境変数・鍵ファイルの種類が増えたため、個々のGitHub Secretsを都度追加していく方式ではなく、**SOPS（age鍵）で暗号化した1ファイル**（`secrets/ci.enc.yaml`）にまとめてリポジトリにコミットし、復号鍵1つだけをGitHub Secretsで管理する方式に切り替えた。
+上記のバイナリ配信パイプラインとは別に、Google Playの「ストア掲載情報」（タイトル・説明文・スクリーンショット・フィーチャーグラフィック等）を`production`ブランチへのマージをトリガーに自動同期するワークフローを設ける。バイナリのリリース可否とは独立に、いつでも最新の掲載情報をPlay Consoleへ反映できるようにする目的（実機キャプチャの差し替え等が、次回アプリバージョンのリリースを待たずに反映される）。
 
-- `secrets/ci.enc.yaml`: SUPABASE_URL / SUPABASE_ANON_KEY / GOOGLE_OAUTH_CLIENT_ID / ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD / GOOGLE_SERVICES_JSON / GOOGLE_PLAY_SERVICE_ACCOUNT_JSON をまとめたYAMLをage鍵で暗号化したもの。値はSOPSにより暗号化されているため**リポジトリにコミットしてよい**（`.gitignore`で`secrets/*`を除外しつつ、このファイルだけ`!secrets/ci.enc.yaml`で例外的に追跡対象にしている）。
-- `.sops.yaml`: `secrets/ci.enc.yaml` に対する暗号化ルール（対象のage公開鍵）を定義するSOPS設定ファイル。
-- 復号鍵（age秘密鍵）は `SOPS_AGE_KEY` という1つのGitHub Secretとしてのみ登録する。CI上では `sops --decrypt secrets/ci.enc.yaml` で復号し、`yq` で個々の値を取り出して `.env` ・ `android/app/google-services.json` ・ keystoreファイルへ書き出す（Play Consoleサービスアカウントのみ`sops --extract`で単独抽出）。
-- ローカル開発者が鍵を追加・更新する場合は、復号 → 平文YAML編集 → 再暗号化（`sops --encrypt --in-place`）→ コミット、という手順を踏む。age秘密鍵ファイル（`~/.config/sops/age/keys.txt`相当）を紛失すると`secrets/ci.enc.yaml`が誰にも復号できなくなるため、開発者各自が安全な場所に必ずバックアップする。
-- 個別のGitHub Secrets（`ANDROID_KEYSTORE_BASE64`等）は本移行後もリポジトリに残しているが、ワークフローはSOPS経由の値のみを参照するため実質未使用（将来的に整理して削除してもよい）。
+```
+[production へのマージ] → update_play_store_listing.yml
+   ├─ 1. リポジトリ内の単一ソース（`assets/store/listing/*.txt`・`assets/store/listing/app_icon_512.png`・
+   │     `assets/store/feature_graphic_1024x500.png`・`assets/store/screenshots_en/{phone,tablet_7in,tablet_10in}/`）
+   │     から、fastlane supply が要求するディレクトリ構造（`metadata/android/en-US/...`）をCIワークスペース内に
+   │     都度組み立てる（このfastlane形式のディレクトリ自体はリポジトリにコミットせず、CI実行時にのみ生成する
+   │     使い捨て成果物とする。素材の実体はリポジトリ内では常に`assets/store/`配下の1箇所に保つ）
+   ├─ 2. git-crypt（11.7節前段と同じ手順）で `secrets/ci.yaml` をアンロードし、
+   │     `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` を `yq` で抽出する
+   └─ 3. r0adkll/upload-google-play アクションを `metadataDirectory: metadata/android`・
+         `releaseFiles`未指定（＝新規バイナリはアップロードしない）で実行し、
+         ストア掲載情報のみをGoogle Playへ反映する
+```
+
+- トリガーは`create_gh_release_draft.yml`と同じく`push`（`production`ブランチ）。バイナリのビルド・Release下書き作成とは別ジョブ・別ワークフローとして独立させ、どちらかの失敗がもう片方をブロックしないようにする。
+- 既定言語（en-US）のみを対象とする。日本語（ja-JP）ローカライズが用意でき次第、同様の構造で`metadata/android/ja-JP/`を追加する。
+- スクリーンショットは実機キャプチャ済みのもの（7章「スクリーンショット」参照）を使う。`assets/store/screenshots/`配下のワイヤーフレームPLACEHOLDER画像はこのワークフローの対象に含めない。
+
+**シークレット管理方針（git-crypt）**:
+
+CIで必要な環境変数・鍵ファイルの種類が増えたため、個々のGitHub Secretsを都度追加していく方式ではなく、**git-crypt（対称鍵によるtransparent暗号化）で暗号化した1ファイル**（`secrets/ci.yaml`）にまとめてリポジトリにコミットし、復号鍵1つだけをGitHub Secretsで管理する方式を採る（当初SOPS + ageで運用していたが、暗号化ファイルの差分確認が実運用上不要だったため、gitのフィルタ経由でワーキングツリー上は平文として扱えるgit-cryptへ移行した）。
+
+- `secrets/ci.yaml`: SUPABASE_URL / SUPABASE_ANON_KEY / GOOGLE_OAUTH_CLIENT_ID / ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD / GOOGLE_SERVICES_JSON / GOOGLE_PLAY_SERVICE_ACCOUNT_JSON をまとめたYAML。`.gitattributes`で`secrets/ci.yaml filter=git-crypt diff=git-crypt -text`を指定しているため、git-cryptをunlockしたワーキングツリー上では平文として読み書きでき、コミット（gitオブジェクト）としては常にAES256-GCMで暗号化された状態で保存される。`.gitignore`は`secrets/*`を除外しつつ、このファイルだけ`!secrets/ci.yaml`で例外的に追跡対象にしている。
+- `.gitattributes`: `secrets/ci.yaml` に対してgit-cryptフィルタを適用するための設定。CRLF/LF変換による暗号化データの破損を防ぐため`-text`を併用する。
+- 復号鍵（git-cryptの対称鍵をbase64エンコードしたもの）は `GIT_CRYPT_KEY_BASE64` という1つのGitHub Secretとして登録する。CI上では`git-crypt unlock`で復号し、`yq`で個々の値を取り出して`.env`・`android/app/google-services.json`・keystoreファイルへ書き出す（Play Consoleサービスアカウントは`secrets/ci.yaml`から`yq`で単独抽出）。ジョブ終了時には`git-crypt lock`でワーキングツリーを再度暗号化状態へ戻す。
+- ローカル開発者が鍵を追加・更新する場合、`secrets/ci.yaml`をunlockした状態（=平文）で直接編集してそのままコミットするだけでよい（SOPS運用時にあった暗号化コマンドの手動実行は不要）。git-cryptの操作自体はWSL上にインストールした`git-crypt`コマンドを使う。
+- **人間の開発者向けの鍵配布はGPGマルチユーザー方式を使い、対称鍵ファイルの手動受け渡しは行わない**: 各開発者は自分のGPG鍵ペアを用意し、既存メンバーが`git-crypt add-gpg-user --trusted <GPG鍵ID>`を実行・コミットすることで、その人のGPG公開鍵で対称鍵を暗号化したファイル（`.git-crypt/keys/default/0/<フィンガープリント>.gpg`）がリポジトリに追加される。新規メンバーはpull後に`git-crypt unlock`（引数なし）を実行するだけで、自分のGPG秘密鍵を使って自動的にロック解除できる。セットアップ手順は[README.md](../README.md)を参照。対称鍵（`git-crypt export-key`で書き出したファイル）はCI用の`GIT_CRYPT_KEY_BASE64`にのみ使用し、人手での配布・保管はしない。鍵を追加・失効できるメンバー（GPG秘密鍵の保有者）が誰もいなくなると`secrets/ci.yaml`が復号不能になる点は運用上の留意点。
+- 旧SOPS運用で使用していた`SOPS_AGE_KEY`のGitHub Secretおよび個別のGitHub Secrets（`ANDROID_KEYSTORE_BASE64`等）は、本移行後も念のためリポジトリに残しているが、ワークフローはgit-crypt経由の値のみを参照するため実質未使用（将来的に整理して削除してもよい）。
 
 **署名鍵の管理方針**:
 
-- 本番アップロードキー（`upload-keystore.jks`）はリポジトリにコミットしない。ローカルで `keytool -genkeypair` により生成し、開発者のマシン等、リポジトリ外の安全な場所に保管する。CIでの利用のため、鍵をBase64エンコードして上記`secrets/ci.enc.yaml`（`ANDROID_KEYSTORE_BASE64`）に含める。
+- 本番アップロードキー（`upload-keystore.jks`）はリポジトリにコミットしない。ローカルで `keytool -genkeypair` により生成し、開発者のマシン等、リポジトリ外の安全な場所に保管する。CIでの利用のため、鍵をBase64エンコードして上記`secrets/ci.yaml`（`ANDROID_KEYSTORE_BASE64`）に含める。
 - `android/app/build.gradle.kts` の `signingConfigs.release` は、CI環境から上記4つの環境変数（`ANDROID_KEYSTORE_PATH` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`）が揃っている場合はそれを優先し、揃っていない場合はローカルの `android/key.properties`（Git管理外、開発者手元のみ）を読み込むフォールバック構成とする。どちらも存在しない場合は従来通りdebug鍵で署名し、`flutter run --release` のローカル動作を妨げない。
 
 ---

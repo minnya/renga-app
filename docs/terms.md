@@ -16,7 +16,9 @@ using Renga, you agree to these Terms. If you do not agree, do not use the App.
 Renga contains user-generated content, public debate, and content-rating features that may include
 mature themes (heated disagreement, public criticism of ideas, and similar content). You must be at
 least **17 years old** (or the age of majority in your jurisdiction, whichever is higher) to create an
-account. By using Renga, you represent that you meet this requirement.
+account. By using Renga, you represent that you meet this requirement. See our
+[Child Safety Standards](child-safety.html) for our published policy against child sexual abuse and
+exploitation (CSAE).
 
 ## 2. The Service
 

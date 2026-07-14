@@ -717,21 +717,29 @@ Renga（連歌）のブランドコンセプトに沿い、「連なる句／連
 
 ### スクリーンショット
 
-**仮スクリーンショット（ワイヤーフレーム・モックアップ）を生成済み**（実データ・実UIではないプレースホルダー。実装が進み次第、実機キャプチャに差し替える）:
-
-- `assets/store/screenshots/01_feed_placeholder.png` — Feed / レイヤーフィルターのイメージ
-- `assets/store/screenshots/02_battle_placeholder.png` — Battle / ロジックチェックのイメージ
-- `assets/store/screenshots/03_profile_placeholder.png` — Profile / 2軸レーダーのイメージ
-- `assets/store/screenshots/04_daily_quiz_placeholder.png` — デイリークイズモーダルのイメージ
-- `assets/store/feature_graphic_1024x500.png` — Play Store フィーチャーグラフィックの仮版
-
-いずれも「PLACEHOLDER MOCKUP」の透かしを明示的に入れており、そのままストア申請には使用不可。実装後、同じレイアウト意図が伝わる構図で実機キャプチャに置き換える。
-
-**Play Console提出用サイズの英語版仮スクリーンショットも生成済み**（同じくPLACEHOLDER MOCKUP、`assets/store/listing/generate_screenshots.py`で再生成可能。Feed/Discoverの真偽投票メーター/Profile/デイリークイズの4カットで統一）:
+**Play Console提出用の英語版スクリーンショットは実機キャプチャ＋マーケティング合成済み**（Google Playの「スクリーンショットがプレースホルダー/ストック画像で実際のアプリ体験を反映していない」という審査指摘を受けて対応。Feed/Discoverの真偽投票メーター/Profileスコアカード/デイリークイズの4カットで統一）:
 
 - `assets/store/screenshots_en/phone/` — 1080×1920（9:16、電話用）
 - `assets/store/screenshots_en/tablet_7in/` — 1200×1920（9:16、7インチタブレット用）
 - `assets/store/screenshots_en/tablet_10in/` — 1600×2560（9:16、10インチタブレット用）
+
+生成パイプライン（`assets/store/listing/`配下、詳細は同ディレクトリのREADME参照）:
+
+1. `capture_screenshots.js` — `flutter build web --release`したアプリを、PlaywrightのデバイスエミュレーションプロファイルPixel 7 / Galaxy Tab S4 / Galaxy Tab S9（Chrome DevToolsの「デバイスツールバー」に相当するプログラム的操作）で操作し、本番Supabaseプロジェクトのテストアカウントでログインした実画面を素の状態でキャプチャする（`raw/`配下、Git管理外）。
+2. `compose_screenshots.py` — 素のキャプチャを、ブランドカラー（system.md記載のパレット、`docs/index.html`のヒーロー配色と同一）のグラデーション背景・各画面を要約した英語の短いマーケティングキャプション・角丸＋ドロップシャドウ付きのデバイスフレームと合成し、最終的な掲載用画像として`assets/store/screenshots_en/`へ書き出す。
+
+各カットのキャプション文言:
+
+| カット | キャプション |
+|---|---|
+| 01_feed | See posts ranked by logic, not just followers |
+| 02_discover_truth_vote | Vote on what's actually true |
+| 03_profile_scorecard | Track your Influence and Intellect side by side |
+| 04_daily_quiz | Sharpen your mind with a daily logic quiz |
+
+**既知の限界**: キャプチャに使用したテストアカウントの投稿内容がテスト用の日本語文言のままであること、Profile画面のハンドルがユーザーIDのUUIDそのまま表示される（Edit Profileにユーザー名変更フィールドが無いため）ことなど、内容面では改善余地がある。実運用ユーザーの投稿が増え次第、より訴求力のある実データのスクリーンショットに再差し替えを検討する。
+
+`assets/store/screenshots/*_placeholder.png` および `assets/store/feature_graphic_1024x500.png`（ランディングページ`docs/index.html`で使用、[system.md — 11.6](system.md#116-github-pages-セットアップ利用規約プライバシーポリシーランディングページ公開)参照）は「PLACEHOLDER MOCKUP」の透かし入りワイヤーフレームのままで、`assets/store/listing/generate_screenshots.py`で再生成できる。Play Console提出には使用しないが、ランディングページ側も実装が進み次第、実機キャプチャに差し替えるのが望ましい（未対応）。
 
 ### ランディングページ（GitHub Pages）
 
@@ -762,6 +770,7 @@ Play Store審査中〜公開後の告知先、SNS/プロフィールのバイオ
   2. 人がGitHub UI上で下書きのリリースノートを確認・編集した上で「Publish release」を手動実行すると、それをトリガーに（再ビルドせず）Draft作成時点で添付済みの `.aab` をそのままGoogle Play `production` トラックへ配信する（`deploy_to_play_store.yml`）。
      - **注意**: `deploy_to_play_store.yml`の起動には人によるGitHub UI上での手動publish操作が必須。デフォルトの`GITHUB_TOKEN`でAPI経由でreleaseを作成・公開しても`release: published`イベントは他ワークフローの新規トリガーにならない（GitHub Actionsの無限ループ防止仕様）ため、下書き作成まではワークフロー任せ、公開操作は必ず人が行う運用とする。
   - 署名鍵（アップロードキー）はリポジトリに含めず、Base64化してGitHub Secretsで管理し、ビルド時のみ一時的に復元する。
+  3. 上記のバイナリ配信パイプラインとは独立に、`production`へのマージをトリガーとして`update_play_store_listing.yml`がストア掲載情報（タイトル・説明文・スクリーンショット・フィーチャーグラフィック）を`assets/store/`配下の素材からGoogle Playへ同期する（詳細は[system.md — 11.7 CI/CDパイプライン（GitHub Actions）— ストア掲載情報自動更新ワークフロー](system.md#117-cicdパイプラインgithub-actions)を参照）。
 
 ---
 

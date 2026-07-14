@@ -30,10 +30,16 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload docs/ as Pages artifact
+      - name: Build with Jekyll
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: docs
+          destination: docs/_site
+
+      - name: Upload built site as Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: docs/_site
 
       - name: Deploy to GitHub Pages
         id: deployment
