@@ -717,11 +717,25 @@ Renga（連歌）のブランドコンセプトに沿い、「連なる句／連
 
 ### スクリーンショット
 
-**Play Console提出用の英語版スクリーンショットは実機キャプチャ済み**（Google Playの「スクリーンショットがプレースホルダー/ストック画像で実際のアプリ体験を反映していない」という審査指摘を受け、`flutter build web --release`したアプリをPlaywrightで操作し、本番Supabaseプロジェクトのテストアカウントでログインした実画面をキャプチャして差し替えた。Feed/Discoverの真偽投票メーター/Profileスコアカード/デイリークイズの4カットで統一）:
+**Play Console提出用の英語版スクリーンショットは実機キャプチャ＋マーケティング合成済み**（Google Playの「スクリーンショットがプレースホルダー/ストック画像で実際のアプリ体験を反映していない」という審査指摘を受けて対応。Feed/Discoverの真偽投票メーター/Profileスコアカード/デイリークイズの4カットで統一）:
 
 - `assets/store/screenshots_en/phone/` — 1080×1920（9:16、電話用）
 - `assets/store/screenshots_en/tablet_7in/` — 1200×1920（9:16、7インチタブレット用）
 - `assets/store/screenshots_en/tablet_10in/` — 1600×2560（9:16、10インチタブレット用）
+
+生成パイプライン（`assets/store/listing/`配下、詳細は同ディレクトリのREADME参照）:
+
+1. `capture_screenshots.js` — `flutter build web --release`したアプリを、PlaywrightのデバイスエミュレーションプロファイルPixel 7 / Galaxy Tab S4 / Galaxy Tab S9（Chrome DevToolsの「デバイスツールバー」に相当するプログラム的操作）で操作し、本番Supabaseプロジェクトのテストアカウントでログインした実画面を素の状態でキャプチャする（`raw/`配下、Git管理外）。
+2. `compose_screenshots.py` — 素のキャプチャを、ブランドカラー（system.md記載のパレット、`docs/index.html`のヒーロー配色と同一）のグラデーション背景・各画面を要約した英語の短いマーケティングキャプション・角丸＋ドロップシャドウ付きのデバイスフレームと合成し、最終的な掲載用画像として`assets/store/screenshots_en/`へ書き出す。
+
+各カットのキャプション文言:
+
+| カット | キャプション |
+|---|---|
+| 01_feed | See posts ranked by logic, not just followers |
+| 02_discover_truth_vote | Vote on what's actually true |
+| 03_profile_scorecard | Track your Influence and Intellect side by side |
+| 04_daily_quiz | Sharpen your mind with a daily logic quiz |
 
 **既知の限界**: キャプチャに使用したテストアカウントの投稿内容がテスト用の日本語文言のままであること、Profile画面のハンドルがユーザーIDのUUIDそのまま表示される（Edit Profileにユーザー名変更フィールドが無いため）ことなど、内容面では改善余地がある。実運用ユーザーの投稿が増え次第、より訴求力のある実データのスクリーンショットに再差し替えを検討する。
 
