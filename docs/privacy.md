@@ -108,7 +108,9 @@ We will respond to verified requests within a reasonable timeframe as required b
 Renga is not directed to children and requires users to be at least 17 years old (see our
 [Terms of Service](terms.html)). We do not knowingly collect personal information from anyone below
 this age. If you believe a minor has created an account, contact us and we will take appropriate
-action, including deletion of the account.
+action, including deletion of the account. See our
+[Child Safety Standards](child-safety.html) for our published policy against child sexual abuse and
+exploitation (CSAE).
 
 ## 9. International Data Transfers
 
