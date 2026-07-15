@@ -110,6 +110,10 @@ create table public.videos (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- RLS: select全公開 + insert-own（uploader_id = auth.uid()）。
+-- updateはuploader_id = auth.uid()、かつ現在のstatusが'uploading'、更新後のstatusが'errored'の場合のみ許可
+-- （アップロード失敗時にクライアントが自前でエラー状態を記録するため。`video_upload_controller.dart`参照）。
+-- Mux Webhook経由の`processing`→`ready`遷移やmux_asset_id/mux_playback_id等の確定はEdge Function（service role）のみが行う。
 
 -- リポスト（検証状態に応じて警告を出す）
 create table public.reposts (
