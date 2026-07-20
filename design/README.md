@@ -9,6 +9,15 @@
 
 環境変数（Supabase CLI / Firebase CLI / Gemini API 等）は [.env.example](../.env.example) を参照。
 
+## AI向け設計メモ（`ai/`）
+
+実装前のトークン効率重視の半構造化メモを置く場所。個別機能の設計・不具合修正のメモに加え、
+再利用可能な手順書も含む：
+
+- **[ai/testing_playwright_flutter_web.md](ai/testing_playwright_flutter_web.md)** — このFlutter Webアプリを
+  Playwrightでシナリオテストする際の手順（アクセシビリティ有効化、テストアカウント作成・メール確認の回避策、
+  クリーンアップ等）。
+
 ## 関連アセット（仮置き）
 
 - `assets/icon/renga_icon_1024.png` — アプリアイコン（仮）
