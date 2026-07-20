@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../core/locale_controller.dart';
 import '../../l10n/gen/app_localizations.dart';
 import 'auth_controller.dart';
 import 'google_signin_button.dart';
@@ -23,10 +24,12 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
   final _usernameController = TextEditingController();
   StreamSubscription<GoogleSignInAuthenticationEvent>? _googleAuthSubscription;
   bool _googleSignInReady = false;
+  // design/product.md 3.11節「Settings（設定）画面」: サインアップ時にも表示言語を選択させる。
+  // 端末言語追従は選ばせず、アプリが対応するロケールのみを選択肢とする。既定はEnglish。
+  Locale _selectedLocale = const Locale('en');
 
   @override
   void initState() {
@@ -61,7 +64,6 @@ class _SignupPageState extends ConsumerState<SignupPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
     _usernameController.dispose();
     _googleAuthSubscription?.cancel();
     super.dispose();
@@ -86,33 +88,42 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     return null;
   }
 
-  String? _validateConfirmPassword(String? value) {
-    final l10n = AppLocalizations.of(context);
-    if (value == null || value.isEmpty) {
-      return l10n.signupConfirmPasswordRequired;
-    }
-    if (value != _passwordController.text) {
-      return l10n.signupPasswordMismatch;
-    }
-    return null;
-  }
-
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
+    final email = _emailController.text.trim();
     final username = _usernameController.text.trim();
+    // design/product.md 3.11節: 選択した言語を即座にアプリ全体の表示言語へ反映する
+    // （確認メール送信後の画面や、確認完了までの間の画面もこの言語で表示されるようにするため）。
+    await ref.read(localeProvider.notifier).setLocale(_selectedLocale);
     await ref
         .read(authControllerProvider.notifier)
         .signUp(
-          email: _emailController.text.trim(),
+          email: email,
           password: _passwordController.text,
           username: username.isEmpty ? null : username,
+          locale: _selectedLocale.languageCode,
         );
     if (!mounted) return;
     final state = ref.read(authControllerProvider);
     if (!state.hasError) {
-      context.go('/');
+      final l10n = AppLocalizations.of(context);
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l10n.signupAppBarTitle),
+          content: Text(l10n.signupCheckEmailMessage(email)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.signupCheckEmailOkButton),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      context.go('/login');
     }
   }
 
@@ -131,7 +142,11 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     ref.listen<AsyncValue<void>>(authControllerProvider, (previous, next) {
       if (next.hasError && !next.isLoading) {
         final error = next.error;
-        final message = error is AuthFailure ? error.message : l10n.signupFailedMessage('$error');
+        final message = error is EmailAlreadyRegisteredFailure
+            ? l10n.authEmailAlreadyRegistered
+            : error is AuthFailure
+                ? error.message
+                : l10n.signupFailedMessage('$error');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     });
@@ -152,10 +167,26 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
-                    child: Image.asset(
-                      'assets/icon/renga_icon_1024.png',
-                      width: 72,
-                      height: 72,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/icon/renga_icon_1024.png',
+                          width: 72,
+                          height: 72,
+                          // design/product.md 3章: 1024px元画像を小サイズ表示する際、既定の
+                          // FilterQuality.lowだとダウンスケール時のディテールが潰れて見えるため、
+                          // ミップマップを使う高品質フィルタに切り替えて画質を改善する。
+                          filterQuality: FilterQuality.high,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.appTitle,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -175,14 +206,27 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     validator: _validatePassword,
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    obscureText: true,
-                    decoration: InputDecoration(labelText: l10n.signupConfirmPasswordLabel),
-                    validator: _validateConfirmPassword,
-                  ),
-                  const SizedBox(height: 16),
                   ProfileSetupUsernameField(controller: _usernameController),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<Locale>(
+                    initialValue: _selectedLocale,
+                    decoration: InputDecoration(labelText: l10n.signupLanguageLabel),
+                    items: [
+                      DropdownMenuItem(
+                        value: const Locale('en'),
+                        child: Text(l10n.settingsLanguageEnglish),
+                      ),
+                      DropdownMenuItem(
+                        value: const Locale('ja'),
+                        child: Text(l10n.settingsLanguageJapanese),
+                      ),
+                    ],
+                    onChanged: isLoading
+                        ? null
+                        : (value) {
+                            if (value != null) setState(() => _selectedLocale = value);
+                          },
+                  ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: isLoading ? null : _submit,

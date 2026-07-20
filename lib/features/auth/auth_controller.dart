@@ -21,6 +21,17 @@ class AuthFailure implements Exception {
   String toString() => message;
 }
 
+/// サインアップ時、指定メールアドレスが既に登録・認証済み（`verified`）だった場合に投げる例外。
+///
+/// Supabase Authは列挙攻撃対策のため、認証済みの既存メールで`signUp`してもエラーを返さず
+/// `identities: []`の疑似成功レスポンスを返す。一方、未認証の既存メールでは確認メールが
+/// 再送され`identities`は空にならない（＝未登録時と同じ「確認メール送信」フローでよい）。
+/// メッセージはUI側（[AppLocalizations.authEmailAlreadyRegistered]）で組み立てるため、
+/// ここでは固定のダミーメッセージのみ持たせる。
+class EmailAlreadyRegisteredFailure extends AuthFailure {
+  EmailAlreadyRegisteredFailure() : super('EMAIL_ALREADY_REGISTERED');
+}
+
 /// メール/パスワードでのログイン・サインアップを行うコントローラ。
 ///
 /// 状態は`AsyncValue<void>`で表現し、UI側は
@@ -53,15 +64,34 @@ class AuthController extends AsyncNotifier<void> {
   /// [username]が指定されていれば`raw_user_meta_data`経由で`handle_new_user`トリガーへ渡し、
   /// `profiles.username`に反映させる。未指定（null・空文字）の場合は渡さず、
   /// トリガー側のデフォルト（ユーザーID）に委ねる。
-  Future<void> signUp({required String email, required String password, String? username}) async {
+  /// [locale]はサインアップ画面で選択した表示言語（`en`/`ja`）で、同トリガー経由で
+  /// `profiles.locale`に反映される。
+  ///
+  /// 指定メールが既に登録・認証済みの場合、Supabaseはエラーを返さず
+  /// `identities: []`の疑似成功レスポンスを返すため、[EmailAlreadyRegisteredFailure]を
+  /// 明示的に投げる。未認証の既存メールの場合はSupabase側が確認メールを再送するのみで
+  /// `identities`は空にならないため、新規登録時と同じ「確認メール送信」フローに合流させる。
+  Future<void> signUp({
+    required String email,
+    required String password,
+    String? username,
+    String? locale,
+  }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       try {
-        await supabase.auth.signUp(
+        final data = <String, dynamic>{
+          if (username != null && username.isNotEmpty) 'username': username,
+          if (locale != null && locale.isNotEmpty) 'locale': locale,
+        };
+        final response = await supabase.auth.signUp(
           email: email,
           password: password,
-          data: (username != null && username.isNotEmpty) ? {'username': username} : null,
+          data: data.isEmpty ? null : data,
         );
+        if (response.user?.identities?.isEmpty ?? false) {
+          throw EmailAlreadyRegisteredFailure();
+        }
       } on AuthException catch (e) {
         throw AuthFailure(e.message);
       }

@@ -135,11 +135,9 @@
   "loginGoogleButton": "Sign in with Google",
 
   "signupAppBarTitle": "Sign up",
-  "signupConfirmPasswordLabel": "Password (confirm)",
-  "signupConfirmPasswordRequired": "Please confirm your password",
-  "signupPasswordMismatch": "Passwords do not match",
   "signupUsernameLabel": "Username (optional)",
   "signupUsernameHelper": "A username will be assigned automatically if left blank",
+  "signupLanguageLabel": "Language",
   "signupSubmitButton": "Sign up",
   "signupFailedMessage": "Sign up failed: {error}",
   "@signupFailedMessage": {
@@ -151,6 +149,16 @@
   },
   "signupGoToLogin": "Already have an account? Log in",
   "signupGoogleButton": "Sign up with Google",
+  "authEmailAlreadyRegistered": "This email address is already registered and verified. Please log in instead.",
+  "signupCheckEmailMessage": "We've sent a verification email to {email}. Please check your inbox to complete your registration.",
+  "@signupCheckEmailMessage": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "signupCheckEmailOkButton": "OK",
 
   "completeProfileAppBarTitle": "Complete your profile",
   "completeProfileDescription": "You're almost done. Choose a username to finish setting up your account.",
@@ -240,6 +248,9 @@
   },
   "quizNextButton": "Next",
   "quizSeeResultButton": "See Results",
+  "quizDailyConfirmTitle": "Daily Quiz",
+  "quizDailyConfirmMessage": "Would you like to answer today's daily quiz now?",
+  "quizDailyConfirmStartButton": "Start",
 
   "profileAppBarTitle": "Profile",
   "profileSignedOutMessage": "Please log in to view your profile",
