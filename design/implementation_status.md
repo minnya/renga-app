@@ -28,6 +28,8 @@ design/product.md・design/system.md に記載の仕様項目と、現在のFlut
 | 21 | サインアップ: 登録済み・認証済みメールはエラー、未認証メールは確認メール再送（未登録時と同じ導線） | - | ✅ 実装済み | `lib/features/auth/auth_controller.dart`（`EmailAlreadyRegisteredFailure`。Supabaseの`identities`空配列で判定） |
 | 22 | サインアップ時に表示言語（アプリ対応言語のみ・デフォルトEnglish）を選択 | product.md 3.11節 | ✅ 実装済み | `lib/features/auth/signup_page.dart`（言語ドロップダウン→`localeProvider`即時反映＋`profiles.locale`へ保存）＋`supabase/migrations/20260716090100_handle_new_user_locale.sql` |
 | 23 | サインイン後、デイリークイズはワンタップ即開始ではなく確認ダイアログを経由 | product.md 3.15節 | ✅ 実装済み | `lib/features/feed/feed_page.dart`（`_confirmAndStartDailyQuiz`） |
+| 24 | ログイン・サインアップ画面のアプリアイコンを高品質フィルタで表示し、アプリ名（Renga）も併記 | - | ✅ 実装済み | `lib/features/auth/login_page.dart`／`lib/features/auth/signup_page.dart`（`filterQuality: FilterQuality.high` + `l10n.appTitle`） |
+| 25 | ユーザー削除（Supabase Authenticationからの削除）時に紐づく全レコードをカスケード削除 | - | ✅ 実装済み | `supabase/migrations/20260720090000_cascade_delete_related_records.sql`（profiles(id)/posts(id)参照の未カスケードFKをon delete cascade化。resolved_by/reason_post_idはon delete set null） |
 
 ## 既知の未対応・今後の課題
 
