@@ -201,7 +201,9 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# Raised from the default of 2 now that Resend is configured as a custom SMTP provider
+# (Supabase's built-in mailer enforces a hard, unconfigurable ~2/hour cap otherwise).
+email_sent = 100
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -239,14 +241,17 @@ otp_length = 8
 otp_expiry = 3600
 
 # Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# Switched from Supabase's built-in mailer (hard ~2 emails/hour cap, unconfigurable) to
+# Resend to remove that bottleneck. API key is stored in secrets/ci.yaml (git-crypt encrypted)
+# as SUPABASE_AUTH_SMTP_PASS and must be exported into the shell env before `supabase config push`.
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(SUPABASE_AUTH_SMTP_PASS)"
+admin_email = "renga@hrkaz.com"
+sender_name = "Renga"
 
 # Renga branding for the signup confirmation email (default template shows "Supabase Auth"
 # and no app name/icon, which confused users into thinking it was spam or unrelated).
