@@ -135,8 +135,8 @@
   "loginGoogleButton": "Sign in with Google",
 
   "signupAppBarTitle": "Sign up",
-  "signupUsernameLabel": "Username (optional)",
-  "signupUsernameHelper": "A username will be assigned automatically if left blank",
+  "signupUsernameLabel": "Username",
+  "signupUsernameHelper": "Shown on your posts and profile",
   "signupLanguageLabel": "Language",
   "signupSubmitButton": "Sign up",
   "signupFailedMessage": "Sign up failed: {error}",

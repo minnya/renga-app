@@ -62,8 +62,8 @@
   "loginGoogleButton": "Googleでログイン",
 
   "signupAppBarTitle": "サインアップ",
-  "signupUsernameLabel": "ユーザー名（任意）",
-  "signupUsernameHelper": "未入力の場合は自動で割り当てられます",
+  "signupUsernameLabel": "ユーザー名",
+  "signupUsernameHelper": "投稿やプロフィールに表示されます",
   "signupLanguageLabel": "言語",
   "signupSubmitButton": "サインアップ",
   "signupFailedMessage": "サインアップに失敗しました: {error}",

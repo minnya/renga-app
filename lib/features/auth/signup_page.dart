@@ -88,6 +88,13 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     return null;
   }
 
+  String? _validateUsername(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return AppLocalizations.of(context).completeProfileUsernameRequired;
+    }
+    return null;
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -102,7 +109,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
         .signUp(
           email: email,
           password: _passwordController.text,
-          username: username.isEmpty ? null : username,
+          username: username,
           locale: _selectedLocale.languageCode,
         );
     if (!mounted) return;
@@ -206,7 +213,10 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     validator: _validatePassword,
                   ),
                   const SizedBox(height: 16),
-                  ProfileSetupUsernameField(controller: _usernameController),
+                  ProfileSetupUsernameField(
+                    controller: _usernameController,
+                    validator: _validateUsername,
+                  ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<Locale>(
                     initialValue: _selectedLocale,

@@ -75,7 +75,7 @@ class FeedPage extends ConsumerWidget {
                   : l10n.feedDailyQuizTooltip,
               onPressed: hasCompletedDailyToday
                   ? null
-                  : () => _confirmAndStartDailyQuiz(context, l10n),
+                  : () => confirmAndStartDailyQuiz(context, l10n),
               icon: const Icon(Icons.quiz_outlined),
             ),
           ],
@@ -170,7 +170,8 @@ class FeedPage extends ConsumerWidget {
 
 /// デイリークイズアイコンタップ時、いきなり設問画面へ遷移せず、
 /// 回答するかどうかを確認するダイアログを一度挟む。
-Future<void> _confirmAndStartDailyQuiz(BuildContext context, AppLocalizations l10n) async {
+/// `lib/app/main_shell.dart`のアプリ起動時プロンプトからも共通利用する。
+Future<void> confirmAndStartDailyQuiz(BuildContext context, AppLocalizations l10n) async {
   final shouldStart = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(

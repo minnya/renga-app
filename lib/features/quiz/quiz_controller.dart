@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/auth_state.dart';
 import '../../core/locale_controller.dart';
@@ -116,6 +117,26 @@ final hasCompletedDailyTodayProvider = FutureProvider<bool>((ref) async {
       .limit(1);
   return rows.isNotEmpty;
 });
+
+const _kDailyQuizPromptShownDatePrefsKey = 'daily_quiz_prompt_last_shown_date';
+
+/// design/product.md 3.15節「アプリ起動時のデイリークイズ確認ダイアログ」。
+/// UTC日付基準で「本日すでにダイアログを表示したか」をSharedPreferencesに永続化し、
+/// 1日1回だけ表示されるようにする（アプリ再起動しても再表示されないように端末ローカルへ保存する）。
+Future<bool> shouldShowDailyQuizPrompt() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString(_kDailyQuizPromptShownDatePrefsKey) != _todayUtcDateString();
+}
+
+Future<void> markDailyQuizPromptShown() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_kDailyQuizPromptShownDatePrefsKey, _todayUtcDateString());
+}
+
+String _todayUtcDateString() {
+  final utc = DateTime.now().toUtc();
+  return '${utc.year.toString().padLeft(4, '0')}-${utc.month.toString().padLeft(2, '0')}-${utc.day.toString().padLeft(2, '0')}';
+}
 
 /// award_daily_completion_tp RPCの戻り値。連続日数・今回付与TP・更新後残高をUIへ伝える。
 class DailyCompletionResult {
