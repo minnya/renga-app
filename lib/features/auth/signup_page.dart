@@ -167,10 +167,26 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
-                    child: Image.asset(
-                      'assets/icon/renga_icon_1024.png',
-                      width: 72,
-                      height: 72,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/icon/renga_icon_1024.png',
+                          width: 72,
+                          height: 72,
+                          // design/product.md 3章: 1024px元画像を小サイズ表示する際、既定の
+                          // FilterQuality.lowだとダウンスケール時のディテールが潰れて見えるため、
+                          // ミップマップを使う高品質フィルタに切り替えて画質を改善する。
+                          filterQuality: FilterQuality.high,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.appTitle,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 24),
