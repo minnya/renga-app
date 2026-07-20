@@ -61,7 +61,7 @@ final onboardingQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) asy
 
 /// design/product.md 3章「デイリーミッション: 1日3問」。
 /// プール(6問)からランダムに3問抽出する。
-final dailyQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) async {
+final dailyQuestionsProvider = FutureProvider.autoDispose<List<QuizQuestion>>((ref) async {
   final locale = _effectiveQuizLocale(ref);
   final rows = await _fetchQuizQuestions(kind: 'daily', locale: locale);
   final questions = rows.map((row) => QuizQuestion.fromMap(row)).toList();
