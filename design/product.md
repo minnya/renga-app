@@ -710,8 +710,8 @@ Renga（連歌）のブランドコンセプトに沿い、「連なる句／連
 - **カテゴリ**: Social
 - **コンテンツレーティング**: 論破・対立煽りの要素、ユーザー生成コンテンツ（画像/動画/通報制度あり）を踏まえ、**Mature 17+ / 18+ 相当**を想定してIARCアンケートに回答する。
 - **利用規約 / プライバシーポリシーURL**: GitHub Pages（リポジトリ `docs/` フォルダをソースに設定）でホスティングする。
-  - 利用規約: `https://minnya.github.io/chatapp-renga/terms.html`
-  - プライバシーポリシー: `https://minnya.github.io/chatapp-renga/privacy.html`
+  - 利用規約: `https://minnya.github.io/renga-app/terms.html`
+  - プライバシーポリシー: `https://minnya.github.io/renga-app/privacy.html`
   - 原稿は `docs/terms.md` / `docs/privacy.md`（英語ドラフト、Firebase Analytics/Crashlytics・AdMob広告ID・Gemini/Muxへのデータ提供を踏まえた内容を記載済み。公開前に法務レビュー推奨）。GitHub Pagesの有効化手順は [system.md — 開発環境・CLI運用](system.md#11-開発環境cli運用) を参照。
 - **データセーフティフォーム**: 収集データ（メールアドレス、投稿内容、広告ID、クイズ回答ログ等）を正確に申告。
 
@@ -749,7 +749,7 @@ Play Store審査中〜公開後の告知先、SNS/プロフィールのバイオ
 「マーケティングURL」としても流用できる一枚のURLを用意することが目的。
 
 - **原稿/実装**: `docs/index.html`（静的HTML+CSS。ビルドツール不要で完結させる）
-- **公開URL**: `https://minnya.github.io/chatapp-renga/`
+- **公開URL**: `https://minnya.github.io/renga-app/`
 - **構成**:
   - ヒーロー: ロゴ + キャッチコピー（英語既定、日本語は補足として併記可）+ ストアバッジ2種（Google Play / App Store）
   - プロダクト紹介: 仮スクリーンショット（`assets/store/screenshots/`）を転用した3〜4枚のイメージと、Influence/Intellectの2軸評価・ロジックチェックといった主要機能の簡潔な訴求

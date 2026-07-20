@@ -157,12 +157,12 @@ enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails. Renga has no web app (mobile-only, Play Store/App Store), so this points to a
 # static "email confirmed" landing page hosted on GitHub Pages instead of an unreachable localhost.
-site_url = "https://minnya.github.io/chatapp-renga/email-confirmed.html"
+site_url = "https://minnya.github.io/renga-app/email-confirmed.html"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
-  "https://minnya.github.io/chatapp-renga/email-confirmed.html",
+  "https://minnya.github.io/renga-app/email-confirmed.html",
   "http://127.0.0.1:3000",
   "https://127.0.0.1:3000",
 ]

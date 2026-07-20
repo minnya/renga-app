@@ -941,10 +941,10 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
 1. リポジトリ設定 `Settings > Pages` を開く
 2. **Source** を `Deploy from a branch` に設定
 3. **Branch** を `main`、フォルダを `/docs` に設定して保存
-4. 数分後、`https://minnya.github.io/chatapp-renga/` で公開される
-   - ランディングページ: `https://minnya.github.io/chatapp-renga/`（`docs/index.html`）
-   - 利用規約: `https://minnya.github.io/chatapp-renga/terms.html`
-   - プライバシーポリシー: `https://minnya.github.io/chatapp-renga/privacy.html`
+4. 数分後、`https://minnya.github.io/renga-app/` で公開される
+   - ランディングページ: `https://minnya.github.io/renga-app/`（`docs/index.html`）
+   - 利用規約: `https://minnya.github.io/renga-app/terms.html`
+   - プライバシーポリシー: `https://minnya.github.io/renga-app/privacy.html`
 5. `docs/terms.md` / `docs/privacy.md` 内の `support@renga-app.com` を実際に監視するサポートメールアドレスに置き換える（公開前に必須）
 6. `docs/index.html` のGoogle Play / App Storeバッジのリンク先を、実際のストア掲載URL確定後に差し替える（Phase 1時点ではApp Store側は「Coming soon」の非活性リンクで暫定運用）
 7. これらのURLをGoogle Play Consoleのストア掲載情報（プライバシーポリシーURL・マーケティングURL）・アプリ内設定画面にそれぞれ設定する
