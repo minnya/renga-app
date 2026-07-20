@@ -219,6 +219,7 @@
   },
   "quizTpAwarded": "You earned 30 TP!",
   "quizTpAwardedGeneric": "You earned TP!",
+  "quizTpAwardFailed": "TP could not be awarded for this attempt.",
   "quizTpAwardedAmount": "You earned {amount} TP!",
   "@quizTpAwardedAmount": {
     "placeholders": {

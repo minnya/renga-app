@@ -29,6 +29,7 @@ class _QuizPageState extends ConsumerState<QuizPage> {
   bool _answeredCurrent = false;
   bool _finished = false;
   bool _tpAwarded = false;
+  bool _dailyAwardFailed = false;
   DailyCompletionResult? _dailyResult;
 
   // design/product.md 3.14節「回答結果フィードバック」。
@@ -130,6 +131,7 @@ class _QuizPageState extends ConsumerState<QuizPage> {
       try {
         _dailyResult = await ref.read(quizControllerProvider).awardDailyCompletionTp();
       } catch (error) {
+        _dailyAwardFailed = true;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
         }
@@ -174,6 +176,7 @@ class _QuizPageState extends ConsumerState<QuizPage> {
               correctCount: _correctCount,
               total: _questions!.length,
               tpAwarded: widget.kind == QuizKind.daily,
+              dailyAwardFailed: _dailyAwardFailed,
               dailyResult: _dailyResult,
             );
           }
@@ -355,12 +358,14 @@ class _QuizResultView extends StatelessWidget {
     required this.correctCount,
     required this.total,
     required this.tpAwarded,
+    required this.dailyAwardFailed,
     this.dailyResult,
   });
 
   final int correctCount;
   final int total;
   final bool tpAwarded;
+  final bool dailyAwardFailed;
   final DailyCompletionResult? dailyResult;
 
   @override
@@ -379,9 +384,9 @@ class _QuizResultView extends StatelessWidget {
               Text(l10n.quizTpAwardedAmount(result.awardedTp.toStringAsFixed(0))),
               const SizedBox(height: 4),
               Text(l10n.quizStreakCount(result.streakCount)),
-            ] else if (tpAwarded) ...[
+            ] else if (tpAwarded && dailyAwardFailed) ...[
               const SizedBox(height: 12),
-              Text(l10n.quizTpAwardedGeneric),
+              Text(l10n.quizTpAwardFailed),
             ],
             const SizedBox(height: 24),
             ElevatedButton(
