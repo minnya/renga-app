@@ -9,9 +9,10 @@
 --
 -- 対象カラムの元の外部キー制約名はマイグレーション作成時に明示指定していない
 -- （Postgresの自動命名に依存）ため、pg_constraintから実際の制約名を動的に取得して
--- drop・再作成する。resolved_by（通報を解決した運営者）・reason_post_id（ストライク理由の
--- 投稿、既に削除されている場合がある）はnullable列であり、削除で当該レコードごと消えるのは
--- 意図と異なるため`on delete set null`とする。それ以外のnot null列は`on delete cascade`とする。
+-- drop・再作成する。resolved_by（通報を解決した運営者）・reason_request_id（ストライク理由の
+-- 真偽審判リクエスト。20260709150000でreason_post_idから統合済み）はnullable列であり、
+-- 削除で当該レコードごと消えるのは意図と異なるため`on delete set null`とする。
+-- それ以外のnot null列は`on delete cascade`とする。
 do $$
 declare
   r record;
@@ -30,7 +31,7 @@ begin
       ('appeals', 'user_id', 'profiles', 'cascade'),
       ('reports', 'reporter_id', 'profiles', 'cascade'),
       ('reports', 'resolved_by', 'profiles', 'set null'),
-      ('strikes', 'reason_post_id', 'posts', 'set null'),
+      ('strikes', 'reason_request_id', 'truth_judgment_requests', 'set null'),
       ('notifications', 'user_id', 'profiles', 'cascade'),
       ('tp_transactions', 'user_id', 'profiles', 'cascade'),
       ('discover_promotions', 'promoted_by', 'profiles', 'cascade'),
