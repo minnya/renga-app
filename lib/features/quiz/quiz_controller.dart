@@ -1,10 +1,25 @@
 import 'dart:math';
 
+import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth_state.dart';
+import '../../core/locale_controller.dart';
 import '../../core/supabase_client.dart';
+import '../../l10n/gen/app_localizations.dart';
 import 'quiz_question.dart';
+
+/// design/product.md 5章「多言語対応」: クイズ設問（`quiz_questions.locale`）を、
+/// [localeProvider]で選択中の表示言語（未選択時は端末言語）に合わせて絞り込むための
+/// ロケールコード。アプリがUIとして対応するロケール（[AppLocalizations.supportedLocales]）
+/// 以外は既定言語の'en'にフォールバックする。
+String _effectiveQuizLocale(Ref ref) {
+  final override = ref.watch(localeProvider);
+  final languageCode =
+      override?.languageCode ?? WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+  final supported = AppLocalizations.supportedLocales.map((l) => l.languageCode).toSet();
+  return supported.contains(languageCode) ? languageCode : 'en';
+}
 
 /// design/product.md 3.2節「ロック解除クイズ（通行料）」に対応する`lockQuiz`を追加。
 /// TP消費投稿の直前に義務化される1〜2問のクイズ種別。
@@ -18,27 +33,37 @@ extension QuizKindX on QuizKind {
       };
 }
 
+/// [locale]の設問が1件もない場合は既定言語'en'にフォールバックして再取得する。
+Future<List<Map<String, dynamic>>> _fetchQuizQuestions({
+  required String kind,
+  required String locale,
+}) async {
+  Future<List<Map<String, dynamic>>> query(String loc) => supabase
+      .from('quiz_questions')
+      .select()
+      .eq('kind', kind)
+      .eq('locale', loc)
+      .eq('is_active', true);
+
+  final rows = await query(locale);
+  if (rows.isNotEmpty || locale == 'en') return rows;
+  return query('en');
+}
+
 /// design/product.md 3章「オンボーディングクイズ: 初回登録時に3問」。
 /// プールは4問用意し、先頭3問を使用する。
 final onboardingQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) async {
-  final rows = await supabase
-      .from('quiz_questions')
-      .select()
-      .eq('kind', 'onboarding')
-      .eq('is_active', true)
-      .order('created_at')
-      .limit(3);
-  return rows.map((row) => QuizQuestion.fromMap(row)).toList();
+  final locale = _effectiveQuizLocale(ref);
+  final rows = await _fetchQuizQuestions(kind: 'onboarding', locale: locale);
+  rows.sort((a, b) => (a['created_at'] as String).compareTo(b['created_at'] as String));
+  return rows.take(3).map((row) => QuizQuestion.fromMap(row)).toList();
 });
 
 /// design/product.md 3章「デイリーミッション: 1日3問」。
 /// プール(6問)からランダムに3問抽出する。
 final dailyQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) async {
-  final rows = await supabase
-      .from('quiz_questions')
-      .select()
-      .eq('kind', 'daily')
-      .eq('is_active', true);
+  final locale = _effectiveQuizLocale(ref);
+  final rows = await _fetchQuizQuestions(kind: 'daily', locale: locale);
   final questions = rows.map((row) => QuizQuestion.fromMap(row)).toList();
   questions.shuffle(Random());
   return questions.take(3).toList();
@@ -47,11 +72,8 @@ final dailyQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) async {
 /// design/product.md 3.2節「ロック解除クイズ（通行料）: TP消費投稿時に1〜2問を義務化」。
 /// プール(4問)からランダムに2問抽出する。TP付与は行わず、通行料としての正誤判定のみに使う。
 final lockQuizQuestionsProvider = FutureProvider.autoDispose<List<QuizQuestion>>((ref) async {
-  final rows = await supabase
-      .from('quiz_questions')
-      .select()
-      .eq('kind', 'lock_quiz')
-      .eq('is_active', true);
+  final locale = _effectiveQuizLocale(ref);
+  final rows = await _fetchQuizQuestions(kind: 'lock_quiz', locale: locale);
   final questions = rows.map((row) => QuizQuestion.fromMap(row)).toList();
   questions.shuffle(Random());
   return questions.take(2).toList();
