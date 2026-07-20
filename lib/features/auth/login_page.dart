@@ -135,6 +135,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Center(
+                    child: Image.asset(
+                      'assets/icon/renga_icon_1024.png',
+                      width: 72,
+                      height: 72,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
