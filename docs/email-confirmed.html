@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>メール確認が完了しました — Renga</title>
+<meta name="description" content="Rengaのメールアドレス確認が完了しました。アプリに戻ってログインしてください。">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="assets/icon/renga_icon_1024.png">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d14;
+    --bg-card: #171b28;
+    --text: #f3f4f8;
+    --text-muted: #9ba0b3;
+    --border: #262b3d;
+    --influence-start: #ff7a45;
+    --intellect-end: #7ee0ff;
+    --intellect-start: #4f6bff;
+    --font-heading: "Space Grotesk", "Avenir Next", "Segoe UI", "Hiragino Sans", sans-serif;
+    --font-body: "Inter", "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --bg: #f7f7fb;
+      --bg-card: #ffffff;
+      --text: #14151c;
+      --text-muted: #565b6e;
+      --border: #e4e5ef;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .card {
+    max-width: 420px;
+    margin: 24px;
+    padding: 40px 32px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    text-align: center;
+  }
+
+  .card img {
+    width: 80px;
+    height: 80px;
+    border-radius: 18px;
+    margin-bottom: 24px;
+    box-shadow: 0 12px 40px rgba(79, 107, 255, 0.25);
+  }
+
+  h1 {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.4rem;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+    background: linear-gradient(90deg, var(--influence-start), var(--intellect-end));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin: 0 0 8px;
+  }
+
+  .support {
+    margin-top: 24px;
+    font-size: 0.82rem;
+  }
+
+  .support a { color: inherit; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <img src="assets/icon/renga_icon_1024.png" alt="Renga app icon">
+  <h1>メール確認が完了しました</h1>
+  <p>アカウントの登録ありがとうございます。</p>
+  <p>このタブは閉じていただいて構いません。Rengaアプリに戻ってログインしてください。</p>
+  <p class="support">お困りの場合は <a href="mailto:support@renga-app.com">support@renga-app.com</a> までご連絡ください。</p>
+</div>
+
+</body>
+</html>
