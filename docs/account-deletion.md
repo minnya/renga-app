@@ -27,7 +27,7 @@ returned to the login screen once deletion completes.
 ### Option 2: By email (if you cannot access the app)
 
 If you are unable to sign in (e.g., you lost access to your device or your account is suspended),
-you can request deletion by emailing **[support@renga-app.com](mailto:support@renga-app.com)** from
+you can request deletion by emailing **[support@hrkaz.com](mailto:support@hrkaz.com)** from
 the email address associated with your account, with the subject line "Account Deletion Request" and
 your username. We will verify your identity and delete your account within a reasonable timeframe,
 generally within 30 days.
@@ -69,7 +69,7 @@ protect the safety and integrity of the platform:
 ## Contact
 
 Questions about account deletion can be sent to
-**[support@renga-app.com](mailto:support@renga-app.com)**.
+**[support@hrkaz.com](mailto:support@hrkaz.com)**.
 
 ---
 

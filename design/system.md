@@ -945,7 +945,7 @@ Muxには専用CLIはなく、ダッシュボード操作とAPIキー発行が�
    - ランディングページ: `https://minnya.github.io/renga-app/`（`docs/index.html`）
    - 利用規約: `https://minnya.github.io/renga-app/terms.html`
    - プライバシーポリシー: `https://minnya.github.io/renga-app/privacy.html`
-5. `docs/terms.md` / `docs/privacy.md` 内の `support@renga-app.com` を実際に監視するサポートメールアドレスに置き換える（公開前に必須）
+5. ~~`docs/terms.md` / `docs/privacy.md` 内の `support@renga-app.com` を実際に監視するサポートメールアドレスに置き換える（公開前に必須）~~ → 完了。サポート窓口は`support@hrkaz.com`、Auth送信元（`supabase/config.toml`の`[auth.email.smtp] admin_email`）は`no-reply@hrkaz.com`に設定済み
 6. `docs/index.html` のGoogle Play / App Storeバッジのリンク先を、実際のストア掲載URL確定後に差し替える（Phase 1時点ではApp Store側は「Coming soon」の非活性リンクで暫定運用）
 7. これらのURLをGoogle Play Consoleのストア掲載情報（プライバシーポリシーURL・マーケティングURL）・アプリ内設定画面にそれぞれ設定する
 

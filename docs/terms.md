@@ -139,7 +139,7 @@ otherwise required by mandatory local law applicable to you as a consumer.
 
 ## 15. Contact
 
-Questions about these Terms can be sent to **[support@renga-app.com](mailto:support@renga-app.com)**.
+Questions about these Terms can be sent to **[support@hrkaz.com](mailto:support@hrkaz.com)**.
 
 ---
 

@@ -250,7 +250,7 @@ host = "smtp.resend.com"
 port = 465
 user = "resend"
 pass = "env(SUPABASE_AUTH_SMTP_PASS)"
-admin_email = "renga@hrkaz.com"
+admin_email = "no-reply@hrkaz.com"
 sender_name = "Renga"
 
 # Renga branding for the signup confirmation email (default template shows "Supabase Auth"

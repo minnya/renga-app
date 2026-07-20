@@ -13,7 +13,7 @@ use the Renga mobile app. It should be read together with our [Terms of Service]
 ## 1. Who We Are
 
 Renga is developed and operated by minnya ("Developer"). For privacy questions or requests, contact
-**[support@renga-app.com](mailto:support@renga-app.com)**.
+**[support@hrkaz.com](mailto:support@hrkaz.com)**.
 
 ## 2. Information We Collect
 
@@ -95,7 +95,7 @@ data, and to object to or restrict certain processing. You can:
 
 - Edit most profile information directly in the App.
 - Request account deletion in-app (Settings → Delete Account) or by contacting
-  **[support@renga-app.com](mailto:support@renga-app.com)**. See our
+  **[support@hrkaz.com](mailto:support@hrkaz.com)**. See our
   [Account Deletion](account-deletion.html) page for details on what is deleted and retained.
 - Control ad personalization through your device's advertising settings (e.g., "Opt out of Ads
   Personalization" in Android system settings).
@@ -135,7 +135,7 @@ acceptance of the revised policy.
 ## 12. Contact Us
 
 Questions, requests, or complaints about this Privacy Policy can be sent to
-**[support@renga-app.com](mailto:support@renga-app.com)**.
+**[support@hrkaz.com](mailto:support@hrkaz.com)**.
 
 ---
 
