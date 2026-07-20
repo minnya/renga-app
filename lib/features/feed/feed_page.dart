@@ -75,7 +75,7 @@ class FeedPage extends ConsumerWidget {
                   : l10n.feedDailyQuizTooltip,
               onPressed: hasCompletedDailyToday
                   ? null
-                  : () => context.push('/daily-quiz'),
+                  : () => _confirmAndStartDailyQuiz(context, l10n),
               icon: const Icon(Icons.quiz_outlined),
             ),
           ],
@@ -165,6 +165,31 @@ class FeedPage extends ConsumerWidget {
       // design/product.md 4章: 投稿作成はAppBarの投稿ボタンからComposeSheetを開く方式に
       // 統一したため、Feed画面独自のFABは撤去する。
     );
+  }
+}
+
+/// デイリークイズアイコンタップ時、いきなり設問画面へ遷移せず、
+/// 回答するかどうかを確認するダイアログを一度挟む。
+Future<void> _confirmAndStartDailyQuiz(BuildContext context, AppLocalizations l10n) async {
+  final shouldStart = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(l10n.quizDailyConfirmTitle),
+      content: Text(l10n.quizDailyConfirmMessage),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.profileCancelButton),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.quizDailyConfirmStartButton),
+        ),
+      ],
+    ),
+  );
+  if (shouldStart == true && context.mounted) {
+    context.push('/daily-quiz');
   }
 }
 
