@@ -236,6 +236,32 @@ ${questionsText}
 // デイリーミッションのプール補充を主目的とするため、既定は'daily'とする。
 const KIND = 'daily';
 
+// lib/features/quiz/quiz_controller.dartは表示言語（en/ja）でquiz_questions.localeを
+// 絞り込むため、片方のlocaleしか生成し続けないともう片方のプールが枯渇し、デイリークイズの
+// ランダム抽選が実質同じ問題を繰り返すだけになってしまう（実際に'ja'固定だったため
+// 'en'側が6問のまま止まっていた不具合の修正）。
+// quiz_generation_runsの直近のlocaleと逆を選ぶことで、外部cron側の設定を増やさずに
+// 30分ごとの実行をen/ja交互に振り分ける。
+const SUPPORTED_LOCALES = ['ja', 'en'] as const;
+
+async function determineNextLocale(
+  supabase: ReturnType<typeof createClient>,
+): Promise<typeof SUPPORTED_LOCALES[number]> {
+  const { data, error } = await supabase
+    .from('quiz_generation_runs')
+    .select('locale')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('generate_quiz_batch: failed to look up last generation run locale', error);
+  }
+
+  const lastIndex = SUPPORTED_LOCALES.indexOf(data?.locale as typeof SUPPORTED_LOCALES[number]);
+  return SUPPORTED_LOCALES[(lastIndex + 1) % SUPPORTED_LOCALES.length];
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'method not allowed' }), { status: 405 });
@@ -257,7 +283,7 @@ Deno.serve(async (req: Request) => {
   }
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  const locale = 'ja';
+  const locale = await determineNextLocale(supabase);
 
   // 1) runレコードをinsert（バッチ全体で1レコード）
   const { data: run, error: runInsertError } = await supabase
