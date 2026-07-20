@@ -136,13 +136,17 @@ class _QuizPageState extends ConsumerState<QuizPage> {
       }
       _tpAwarded = true;
     }
-    ref.read(quizControllerProvider).invalidateCompletionStatus();
     if (!mounted) return;
     setState(() {
       _showingFeedback = false;
       _finishing = false;
       _finished = true;
     });
+    // design/product.md 4章: 完了状態の無効化はgo_routerのredirect再評価（onboarding完了時の
+    // /onboarding-quiz→ホーム自動遷移）を連鎖的に引き起こすため、結果画面が表示された後に行う
+    // （setStateより前に行うと、その連鎖の巻き添えで本ウィジェット自体が結果表示前に破棄され、
+    // 結果サマリーが一切表示されないまま元の画面へ戻ってしまう不具合になっていた）。
+    ref.read(quizControllerProvider).invalidateCompletionStatus(widget.kind);
   }
 
   @override

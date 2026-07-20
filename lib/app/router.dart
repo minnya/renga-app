@@ -62,7 +62,23 @@ CustomTransitionPage<void> _fadeSlidePage(BuildContext context, GoRouterState st
 /// [Splash] → [Onboarding: 3問クイズ] → [Home Tab Bar] の必須フローに対応するため、
 /// この集合に含まれないパスはオンボーディングクイズ未完了時に `/onboarding-quiz` へ
 /// 強制リダイレクトされる。
-const _onboardingExemptPaths = {'/login', '/signup', '/debug', '/onboarding-quiz', '/complete-profile'};
+///
+/// `/daily-quiz`もここに含める: デイリークイズはFeed（オンボーディング完了済みでないと
+/// 到達できない画面）からのみ開始できるため、この画面に来る時点でオンボーディングは
+/// 必ず完了済みであり、除外しても実害はない。むしろ除外しておくことで、
+/// `hasCompletedOnboardingProvider`の無効化（`_AuthRefreshListenable`経由でredirectを
+/// 再評価させる）が万一この画面の表示中に発生しても、redirect判定そのものをスキップでき、
+/// クイズ結果画面が表示される前にこの画面が破棄されてしまう不具合を防げる
+/// （実際に発生していた不具合。`lib/features/quiz/quiz_controller.dart`の
+/// `invalidateCompletionStatus`の修正が根本対応、これは保険的な多重対策）。
+const _onboardingExemptPaths = {
+  '/login',
+  '/signup',
+  '/debug',
+  '/onboarding-quiz',
+  '/complete-profile',
+  '/daily-quiz',
+};
 
 /// アプリ全体のルーティング定義。
 ///

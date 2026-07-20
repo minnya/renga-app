@@ -185,9 +185,23 @@ class QuizController {
     );
   }
 
-  void invalidateCompletionStatus() {
-    ref.invalidate(hasCompletedOnboardingProvider);
-    ref.invalidate(hasCompletedDailyTodayProvider);
+  /// [kind]の完了状態のみを無効化する。
+  ///
+  /// 以前は無条件で両方を無効化していたが、`hasCompletedOnboardingProvider`は
+  /// `_AuthRefreshListenable`（`lib/app/router.dart`）が購読しておりgo_routerの`redirect`を
+  /// 再評価させる。`/daily-quiz`は`_onboardingExemptPaths`の対象外のため、デイリークイズ完了時に
+  /// 無関係な`hasCompletedOnboardingProvider`まで無効化すると、その再評価の巻き添えで
+  /// `/daily-quiz`画面が結果表示（`_finished = true`へのsetState）の直前に破棄されてしまい、
+  /// TP付与自体は成功するのに結果サマリー画面が一切表示されないままフィードへ戻る不具合になっていた。
+  void invalidateCompletionStatus(QuizKind kind) {
+    switch (kind) {
+      case QuizKind.onboarding:
+        ref.invalidate(hasCompletedOnboardingProvider);
+      case QuizKind.daily:
+        ref.invalidate(hasCompletedDailyTodayProvider);
+      case QuizKind.lockQuiz:
+        break;
+    }
   }
 }
 
